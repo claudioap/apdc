@@ -1,0 +1,93 @@
+\documentclass[runningheads]{llncs}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\begin{document}
+\title{Programming Abstractions for Wireless Distributed Protocols}
+\author{Cláudio Afonso de Sousa Pereira}
+\institute{NOVA University of Lisbon,\\
+Faculdade de Ciências e Tecnolgia, Almada, Portugal\\
+\email{cad.pereira@campus.fct.unl.pt}}
+
+\maketitle
+
+\begin{center} Supervised by João Leitão, Carla Ferreira and João Seco \end{center}
+\begin{abstract}
+The complexity of a problem and the extent to which the programmer must consider the system that's being built, are defining factors that directly correlate with the ease of development.
+Ideally, complex problems should to be split in simple sub-problems or seen from different perspectives. Abstractions give programmers new concepts, or translate existing problems to analogous concepts, resulting in cleaner code, with clear sub-components that the program can easily think of.
+\par \textit{Yggdrasil} is a framework that simplifies the coding of wireless distributed network protocols. A framework serves the programmer precisely as a tool to ease the development, as a layer of abstraction. But Yggdrasil was designed to run off commodity hardware and needed to be efficient. Efficiency often comes with limitations, and for Yggdrasil that meant low level code.
+\par This investigation will study the design and usage of domain-specific languages tailored to design wireless distributed protocols as abstractions, as an attempt to simplify frameworks such as \textit{Yggdrasil} usage while keeping them efficient.
+
+\keywords{Distributed protocols  \and Wireless \and Ad hoc \and Abstraction \and Domain specific language \and Transpilation}
+\end{abstract}
+
+\section{Introduction}
+\subsection{The need for abstraction}
+We can't formulate our complex thoughts with the very simple and granular instructions that computers use.
+Albeit we understand granular concepts easily, our thought process cannot deal with more than a few ideas at once. What we tend to do is to work with building blocks. We group a few simple concepts to build an abstraction, such as gathering the knowledge required to make conditional decisions and abstracting that knowledge with an ``\textit{if}" instruction.
+Abstraction helps us solve hard problems, step by step, with simple components.
+\par There is no formula that leads to good abstraction. Functions are often abstractions. Libraries tend to abstract problems.
+Even by using an higher level language one is probably abstracting problems. But not every abstraction is the same. Some offer good trade-offs, some don't.
+\par We have one of hard problem, the  programming of distributed wireless communication protocols, and we want to study possible abstractions, that make the programming easier for the programmer.
+\subsection{Cloud computing}
+For the last few decades we've seen an explosion in what is marketed as ``\textit{cloud computing}", the internet of centralized services in which devices serve as clients that interact with immensely huge data centers.
+That approach has its drawbacks, ranging from the technical issues (such as latency), to the social ones (such as privacy), and during this whole transition there have been communities and a few corporations pushing the opposing way, towards the edge. Recently that push has been gathering considerable attention.
+\subsection{Edge computing}
+Edge computing is a system design approach that leaves the computational nodes as near as possible to the nodes that either provide the input data or consume the result.
+It provides several benefits over centralized computing, such as low latency, data ownership and better control over hardware.
+\par But the edge suffers from the sorites paradox. Where does it end? Which set of machines form the boundary?
+The edge has no strict definition. The extent to which a machine is still considered in the edge is up to the system designer. For the purpose of this investigation we'll consider an arbitrarily large wireless local area network(WLAN) as the edge.
+\subsection{Ad hoc networks}
+An \textit{ad hoc} network is a wireless organic network topology where nodes don't have to follow a strict hierarchy unlike a tree or star topology. \textit{Ad hoc} network nodes are arranged in a graph, and in some scenarios the graph changes dynamically with time.\cite{Akos:2018}
+This topology presents advantages, such as resilience, and in some scenarios its much cheaper to build. But as drawbacks, they bring new development challenges, can be much less performant than their strict counterparts if set improperly, are harder to develop for, can have latency issues and might have issues scaling with the addition of new participants.
+\par There are several protocols and abstractions that deploying \textit{ad hoc} networks that tackle real problems. Among them is \textit{Yggdrasil}, a framework that supports the development of wireless ad hoc networks.
+\textit{Yggdrasil} is a powerful framework, and yet it runs off commodity hardware. Unfortunately, this power and efficiency come at the cost of simplicity.
+\textit{Yggdrasil} is written in the C programming language, which tends to be considered a low level language among the general purpose programming languages, and that translates to highly verbose code and a bigger burden on the programmer.
+\par This investigation revolves around the development of low cost abstractions on top of \textit{Yggdrasil} as means to study the programming of abstractions for the development of wireless distributed protocols, such as the ones that operate over \textit{ad hoc} networks.
+
+\section{Proposed approach}
+\subsection{The Yggdrasil language}
+The abstraction issue with \textit{Yggdrasil} comes from the fact that is written in the C programming language. While C is a good programming language for the problem that \textit{Yggdrasil} attempts to solve, it cripples efforts to simplify the framework's usage. As such the proposed approach starts with the definition of a language tailored for the \textit{Yggdrasil} framework. A language with low or even zero-cost abstractions that won't end up degrading \textit{Yggdrasil} performance. From now on that language will be designated as YGGL to distinguish it from the software.
+
+\par Given the requirements, it isn't expected that YGGL perfectly matches the intended usecase during the first iteration. It is likely that YGGL will change during the following development step, with the specification getting amended several times. Such amends will become more and more costly the further the development goes, specially if they conflict with the previously defined specification, and as such are very undesirable.
+\subsection{Transpilation}
+The YGGL language has to be linked to \textit{Yggdrasil}, and there are several potentially good approaches.
+\par It was decided that compiling the language back to the C language would be the approach used in this investigation. This kind of compilation is known as ``\textit{transpilation}", the translation between compiled languages. It will be done by a special type of compiler program known as a ``\textit{transpiler}".
+\par A perfect transpilation from a zero-cost abstraction language doesn't lose any performance over a native implementation. At most it can lose potential for optimization if the abstraction language isn't flexible enough.
+\subsection{Validation}
+With the transpiler development being subjected to errors, and the language definition prone to be misinterpreted or unclear, validation helps ensuring conformity with the YGGL specification.
+\par A few short programs will be written during the development of the transpiler, as means to test the implemented features, but those examples are short of being enough to declare the transpiler as conformant with the language specification. More extensive validations, such as formal specification languages are one of the possible tools to aid with the validation effort.
+
+\section{Related work}
+Compilers, transpilers and interpreters are nowadays a part of very mature study fields. There is a variety of available research, implementations, support libraries and middlewares. Every language is unique, specially domain specific languages, but a variety of techniques and methodologies is shared among them.
+\par The transpilation process will be discussed to greater lengths in the upcoming weeks, but has widely accepted solutions for some of its problems, such as the usage of context free or parsing expression grammars for lexing. There are tools like Flex that help composing textual tokens, and others like Bison that help with the parsing. Even this mature field is still subject to changes, and new tools like Pest appear to be viable alternatives \cite{AppelModernCompiler:1997,FlexBisonLevine:2009,Pest:2019}.
+
+\section{Work plan}
+This investigation started at the middle of March, 2019, and has a deadline at the June 8\textsuperscript{th} of the same year, totaling about 12 full weeks.
+\par These are main tasks at hand:
+\begin{enumerate}
+	\item Defining a domain specific language for the given use case.
+	\item Choosing from the available tooling.
+	\item Writing a transpiler.
+	\item Writing some example programs in the new domain specific language.
+	\item Validating the transpiler using formal testing tools.
+	\item Writing a final report.
+\end{enumerate}
+\subsection{Scheduling}
+Given the task numbers above, the proposed scheduling is as follows:
+\begin{table}
+\centering
+\begin{tabular}{c|c|c|c|c|c|c|c|c|c|c|c|c}
+\hline
+\textbf{Week} & 1 & 2   & 3   & 4 & 5 & 6   & 7   & 8   & 9     & 10 & 11 & 12 \\ \hline
+\textbf{Task} & - & 1,2 & 2,3 & 3 & 3 & 3,4 & 3,4 & 3,4 & 3,4,5 & 5  & 5  & 6  \\ \hline
+\end{tabular}
+\end{table}\\
+Although some tasks might be harder than expected, and others might be simpler. The schedule is not certain.
+
+\bibliographystyle{plain}
+\bibliography{bibliography}
+\end{document}
