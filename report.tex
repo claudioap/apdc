@@ -59,10 +59,18 @@ The YGGL language has to be linked to \textit{Yggdrasil}, and there are several 
 \subsection{Validation}
 With the transpiler development being subjected to errors, and the language definition prone to be misinterpreted or unclear, validation helps ensuring conformity with the YGGL specification.
 \par A few short programs will be written during the development of the transpiler, as means to test the implemented features, but those examples are short of being enough to declare the transpiler as conformant with the language specification. More extensive validations, such as formal specification languages are one of the possible tools to aid with the validation effort.
+\clearpage
 
 \section{Related work}
+\subsection*{Transpilation process}
 Compilers, transpilers and interpreters are nowadays a part of very mature study fields. There is a variety of available research, implementations, support libraries and middlewares. Every language is unique, specially domain specific languages, but a variety of techniques and methodologies is shared among them.
 \par The transpilation process will be discussed to greater lengths in the upcoming weeks, but has widely accepted solutions for some of its problems, such as the usage of context free or parsing expression grammars for lexing. There are tools like Flex that help composing textual tokens, and others like Bison that help with the parsing. Even this mature field is still subject to changes, and new tools like Pest appear to be viable alternatives \cite{AppelModernCompiler:1997,FlexBisonLevine:2009,Pest:2019}.
+\subsection*{Base frameworks}
+\textit{Isis}, \textit{Horus} and \textit{Appia} are frameworks that serve a purpose similar to Yggdrasil, but focusing on group communication without proper support for wireless networking primitives.\\
+\textit{TinyOS} is a light operating system with tooling to program sensor network applications, and  Impala is a middleware with a similar purpose.\\
+The interfaces present in these softwares might be applicable on top of Yggdrasil as a part of the YGGL language.
+\subsection*{Domain specific languages}
+There are several domain specific languages. Among them the ``Packet Language for Active Networks''(\textit{PLAN}) might be an interesting source of inspiration. And albeit only a filter language, \textit{Wireshark} filters might also provide a good way to deal with the conditional matching of messages.
 
 \section{Work plan}
 This investigation started at the middle of March, 2019, and has a deadline at the June 8\textsuperscript{th} of the same year, totaling about 12 full weeks.
