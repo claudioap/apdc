@@ -16,12 +16,14 @@ Faculdade de Ciências e Tecnolgia, Almada, Portugal\\
 
 \begin{center} Supervised by João Leitão, Carla Ferreira and João Seco \end{center}
 \begin{abstract}
-The complexity of a problem and the extent to which the programmer must consider the system that's being built, are defining factors that directly correlate with the ease of development.
-Ideally, complex problems should to be split in simple sub-problems or seen from different perspectives. Abstractions give programmers new concepts, or translate existing problems to analogous concepts, resulting in cleaner code, with clear sub-components that the program can easily think of.
-\par \textit{Yggdrasil} is a framework that simplifies the coding of wireless distributed network protocols. A framework serves the programmer precisely as a tool to ease the development, as a layer of abstraction. But Yggdrasil was designed to run off commodity hardware and needed to be efficient. Efficiency often comes with limitations, and for Yggdrasil that meant low level code.
-\par This investigation will study the design and usage of domain-specific languages tailored to design wireless distributed protocols as abstractions, as an attempt to simplify frameworks such as \textit{Yggdrasil} usage while keeping them efficient.
-
-\keywords{Distributed protocols  \and Wireless \and Ad hoc \and Abstraction \and Domain specific language \and Transpilation}
+We humans are constantly developing new technologies, with ever growing complexity.
+To keep our technologies manageable we try to abstract their workings. The more manageable development is, the further we can develop.
+\par Wireless \textit{ad hoc} networks are a relatively new technology, and provide numerous advantages over traditional networks (such as better support for reliable edge computing), but their implementations often depend on complex software solutions. One of those solutions is \textit{Yggdrasil}, a software framework to develop protocols that operate in wireless \textit{ad hoc} networks.
+\par Yggdrasil was designed to run on commodity hardware, that is, with efficiency in mind. But efficiency often comes with limitations, and for Yggdrasil that meant low level code which is tedious and error prone.
+\par This investigation will study the design and usage of domain-specific languages tailored to specify wireless ad hoc distributed protocols as an attempt to simplify frameworks such as \textit{Yggdrasil}.
+An yet to exist domain specific language named YGGL will be designed specifically to work with the Yggdrasil interfaces.
+Ideally it will be flexible enough to allow the programmer to develop with minimal performance penalization over writing native \textit{Yggdrasil} code (in the C Programming Language), while being considerably less verbose and prone to semantic errors.
+\keywords{Distributed protocols  \and Wireless \and Ad hoc \and Abstraction \and Domain specific language \and Transpilation \and YGGL}
 \end{abstract}
 
 \section{Introduction}
@@ -30,22 +32,23 @@ We can't formulate our complex thoughts with the very simple and granular instru
 Albeit we understand granular concepts easily, our thought process cannot deal with more than a few ideas at once. What we tend to do is to work with building blocks. We group a few simple concepts to build an abstraction, such as gathering the knowledge required to make conditional decisions and abstracting that knowledge with an ``\textit{if}" instruction.
 Abstraction helps us solve hard problems, step by step, with simple components.
 \par There is no formula that leads to good abstraction. Functions are often abstractions. Libraries tend to abstract problems.
-Even by using an higher level language one is probably abstracting problems. But not every abstraction is the same. Some offer good trade-offs, some don't.
-\par We have one of hard problem, the  programming of distributed wireless communication protocols, and we want to study possible abstractions, that make the programming easier for the programmer.
+Even by using an higher level language one is probably abstracting problems. But not every abstraction is as as good as some prevent optimization.
+\par We have one hard problem, the  programming of distributed wireless communication protocols, and we want to study possible abstractions, that make the programming easier for the programmer.
 \subsection{Cloud computing}
-For the last few decades we've seen an explosion in what is marketed as ``\textit{cloud computing}", the internet of centralized services in which devices serve as clients that interact with immensely huge data centers.
+For the last few decades we've seen an explosion in what is marketed as ``\textit{cloud computing}", the Internet of centralized services in which devices serve as clients that interact with immensely huge data centers.
 That approach has its drawbacks, ranging from the technical issues (such as latency), to the social ones (such as privacy), and during this whole transition there have been communities and a few corporations pushing the opposing way, towards the edge. Recently that push has been gathering considerable attention.
 \subsection{Edge computing}
 Edge computing is a system design approach that leaves the computational nodes as near as possible to the nodes that either provide the input data or consume the result.
 It provides several benefits over centralized computing, such as low latency, data ownership and better control over hardware.
 \par But the edge suffers from the sorites paradox. Where does it end? Which set of machines form the boundary?
-The edge has no strict definition. The extent to which a machine is still considered in the edge is up to the system designer. For the purpose of this investigation we'll consider an arbitrarily large wireless local area network(WLAN) as the edge.
+The edge has no strict definition. The extent to which a machine is still considered in the edge is up to the system designer. For the purpose of this investigation we'll consider an arbitrarily large wireless local area network(WLAN) as our edge scenario.
 \subsection{Ad hoc networks}
-An \textit{ad hoc} network is a wireless organic network topology where nodes don't have to follow a strict hierarchy unlike a tree or star topology. \textit{Ad hoc} network nodes are arranged in a graph, and in some scenarios the graph changes dynamically with time.\cite{Akos:2018}
-This topology presents advantages, such as resilience, and in some scenarios its much cheaper to build. But as drawbacks, they bring new development challenges, can be much less performant than their strict counterparts if set improperly, are harder to develop for, can have latency issues and might have issues scaling with the addition of new participants.
+An \textit{ad hoc} network is a wireless organic network topology where nodes don't have to follow a strict hierarchy unlike a tree or star topology.
+\textit{Ad hoc} network nodes are modeled as a graph where links denote two nodes that can communicate directly with each other, and in some scenarios the graph changes dynamically with time.\cite{Akos:2018}
+This topology presents advantages, such as resilience, and in some scenarios its much cheaper to build. But as drawbacks, they bring new development challenges, can be much less performant than their strict counterparts if set improperly, are harder to develop for, can have latency issues, and might have issues scaling with the addition of new participants.
 \par There are several protocols and abstractions that deploying \textit{ad hoc} networks that tackle real problems. Among them is \textit{Yggdrasil}, a framework that supports the development of wireless ad hoc networks.
-\textit{Yggdrasil} is a powerful framework, and yet it runs off commodity hardware. Unfortunately, this power and efficiency come at the cost of simplicity.
-\textit{Yggdrasil} is written in the C programming language, which tends to be considered a low level language among the general purpose programming languages, and that translates to highly verbose code and a bigger burden on the programmer.
+\textit{Yggdrasil} is a powerful framework, that can run on commodity hardware. Unfortunately, this power and efficiency comes at the cost of simplicity.
+\textit{Yggdrasil} is written in the C programming language, which tends to be considered a low level language among the general purpose programming languages, and that translates to highly verbose code and a significant burden on the programmer.
 \par This investigation revolves around the development of low cost abstractions on top of \textit{Yggdrasil} as means to study the programming of abstractions for the development of wireless distributed protocols, such as the ones that operate over \textit{ad hoc} networks.
 
 \section{Proposed approach}
