@@ -9,10 +9,38 @@ use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
 use crate::yggl::language::Program;
 use crate::yggl::environment::Variable;
+use crate::yggl::function::*;
+use std::collections::linked_list::LinkedList;
+use std::fmt;
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
 pub struct YGGLParser;
+
+#[allow(dead_code)]
+pub struct CompilationError {
+    line: u32,
+    col: u32,
+    code: String,
+    cause: String,
+}
+
+impl CompilationError {
+    fn new(line: u32, col: u32, code: String, cause: String) -> CompilationError {
+        CompilationError {
+            line,
+            col,
+            code,
+            cause,
+        }
+    }
+}
+
+impl fmt::Display for CompilationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{} {}", self.line, self.col, self.cause)
+    }
+}
 
 pub fn lex(code: &str) -> Result<Pairs<Rule>, &str> {
     match YGGLParser::parse(Rule::program, code) {
@@ -37,44 +65,48 @@ pub fn lex(code: &str) -> Result<Pairs<Rule>, &str> {
 }
 
 impl<'a> Program<'a> {
-    pub fn from(pairs: Pairs<Rule>) -> Result<Program, ()> {
+    pub fn from(pairs: Pairs<Rule>) -> Result<Program, CompilationError> {
         let mut program = Program::new();
         for pair in pairs {
             match pair.as_rule() {
                 Rule::statement => {
-                    if let Ok(statement) = Statement::from(pair) {
-                        println!("{}", statement);
-                        program.add_statement(statement)
-                    } else {
-                        panic!("Unable to create statement");
-                    }
+                    let statement = Statement::from(pair)?;
+                    program.add_statement(statement);
                 }
                 Rule::EOI => {}
                 _ => unimplemented!()
             }
         }
-        return Ok(program);
+        Ok(program)
     }
 }
 
 impl<'a> Statement<'a> {
-    pub fn from(pair: Pair<Rule>) -> Result<Statement<'a>, ()> {
-        println!("Statement: {:?}", pair);
-        for pair in pair.into_inner() {
-            match pair.as_rule() {
-                Rule::atribution => {
-                    let mut inner_rules = pair.into_inner();
-                    let mut pair = inner_rules.next().unwrap();
-                    let identifier = pair.as_str().to_string();
-                    pair = inner_rules.next().unwrap();
-                    println!("Pair: {:?}", pair);
-                    let expression = Expression::from(pair).unwrap();//Expression::Constant(Constant::Int(1));
-                    return Ok(Statement::Assignment(identifier, expression));
+    pub fn from(pair: Pair<'a, Rule>) -> Result<Statement<'a>, CompilationError> {
+        println!("Statement: {}", pair);
+        let pair = pair.into_inner().next().unwrap();
+        match pair.as_rule() {
+            Rule::atribution => {
+                let mut inner_rules = pair.into_inner();
+                let mut pair = inner_rules.next().unwrap();
+                let identifier = pair.as_str().to_string();
+                pair = inner_rules.next().unwrap();
+                match pair.as_rule() {
+                    Rule::expression => {
+                        println!("Expression: {}", pair);
+                        let expression = Expression::from(pair).unwrap();
+                        return Ok(Statement::Assignment(identifier, expression));
+                    }
+                    Rule::function => {
+                        println!("Function: {}", pair);
+                        let function = Function::from(pair)?;
+                        return Ok(Statement::FunctionDef(identifier, function));
+                    }
+                    _ => unreachable!()
                 }
-                _ => { print!("?: {}", pair) }
             }
+            _ => unreachable!()
         }
-        return Err(());
     }
 }
 
@@ -105,13 +137,12 @@ impl Expression {
                         let var = Variable::new(pair.as_str());
                         Ok(Expression::Variable(var))
                     }
-                    _ => unreachable!("{:?}", pair),
+                    _ => unreachable!("\n{:?}\n", pair),
                 },
             |lhs: Result<Expression, ()>, op: Pair<Rule>, rhs: Result<Expression, ()>|
                 {
                     let l = lhs.unwrap();
                     let r = rhs.unwrap();
-                    println!("Climb {:?} - {:?} - {:?}", l, op.as_rule(), r);
                     match op.as_rule() {
                         Rule::add => Ok(l + r),
                         Rule::sub => Ok(l - r),

@@ -22,8 +22,9 @@ fn main() {
     let lex_result = lex(&unparsed_file);
 
     if let Ok(program) = lex_result {
-        if let Ok(mut program) = Program::from(program) {
-            println!("{}", program.transpile());
+        match Program::from(program) {
+            Ok(mut program) => println!("{}", program.transpile()),
+            Err(error) => println!("{}", error)
         }
     } else {
         exit(-1);
