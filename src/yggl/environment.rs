@@ -83,7 +83,7 @@ impl<'a> Scope<'a> {
 /// Therefore, once the parsing is done, any variable without a error means an error.
 #[derive(Clone, Debug)]
 pub struct Variable {
-    id: String,
+    pub id: String,
     data_type: Option<DataType>,
 }
 

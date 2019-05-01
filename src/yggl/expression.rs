@@ -52,13 +52,13 @@ impl Expression {
     pub fn transpile(&self, env: &mut Environment) -> String {
         match self {
             &Expression::Constant(ref c) => format!("{}", c),
+            &Expression::Variable(ref v) => format!("{}", v.id),
             &Expression::UnaryOperation(ref exp, ref op) => {
                 format!("({}{})", op, exp.transpile(env))
             }
             &Expression::BinaryOperation(ref lhs, ref op, ref rhs) => {
                 format!("({} {} {})", lhs.transpile(env), op, rhs.transpile(env))
             }
-            _ => { "".to_string() }
         }
     }
 }
