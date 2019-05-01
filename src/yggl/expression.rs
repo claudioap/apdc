@@ -1,9 +1,9 @@
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::data::{Constant, DataType};
-use std::fmt;
+use std::{fmt, ops};
 
 /// Expressions represent portions of code that evaluate to values
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum Expression {
     Variable(Variable),
@@ -33,7 +33,8 @@ impl Expression {
                     BinaryOperation::Sum => lexp.eval(environment) + rexp.eval(environment),
                     BinaryOperation::Sub => lexp.eval(environment) - rexp.eval(environment),
                     BinaryOperation::Mul => lexp.eval(environment) * rexp.eval(environment),
-                    BinaryOperation::Div => lexp.eval(environment) / rexp.eval(environment)
+                    BinaryOperation::Div => lexp.eval(environment) / rexp.eval(environment),
+                    BinaryOperation::Pow => lexp.eval(environment).pow(&rexp.eval(environment))
                 }
             }
         }
@@ -73,8 +74,95 @@ impl fmt::Display for Expression {
     }
 }
 
+impl ops::Add<Expression> for Expression {
+    type Output = Expression;
 
-#[derive(Clone)]
+    fn add(self, r: Expression) -> Expression {
+        use Expression::Constant;
+
+        match self {
+            Constant(c1) => match r {
+                Constant(c2) => Constant(c1 + c2),
+                _ => Expression::BinaryOperation(
+                    Box::new(Constant(c1)),
+                    BinaryOperation::Sum,
+                    Box::new(r)),
+            },
+            _ => Expression::BinaryOperation(
+                Box::new(self),
+                BinaryOperation::Sum,
+                Box::new(r)),
+        }
+    }
+}
+
+impl ops::Sub<Expression> for Expression {
+    type Output = Expression;
+
+    fn sub(self, r: Expression) -> Expression {
+        use Expression::Constant;
+
+        match self {
+            Constant(c1) => match r {
+                Constant(c2) => Constant(c1 - c2),
+                _ => Expression::BinaryOperation(
+                    Box::new(Constant(c1)),
+                    BinaryOperation::Sub,
+                    Box::new(r)),
+            },
+            _ => Expression::BinaryOperation(
+                Box::new(self),
+                BinaryOperation::Sub,
+                Box::new(r)),
+        }
+    }
+}
+
+impl ops::Mul<Expression> for Expression {
+    type Output = Expression;
+
+    fn mul(self, r: Expression) -> Expression {
+        use Expression::Constant;
+
+        match self {
+            Constant(c1) => match r {
+                Constant(c2) => Constant(c1 * c2),
+                _ => Expression::BinaryOperation(
+                    Box::new(Constant(c1)),
+                    BinaryOperation::Mul,
+                    Box::new(r)),
+            },
+            _ => Expression::BinaryOperation(
+                Box::new(self),
+                BinaryOperation::Mul,
+                Box::new(r)),
+        }
+    }
+}
+
+impl ops::Div<Expression> for Expression {
+    type Output = Expression;
+
+    fn div(self, r: Expression) -> Expression {
+        use Expression::Constant;
+
+        match self {
+            Constant(c1) => match r {
+                Constant(c2) => Constant(c1 / c2),
+                _ => Expression::BinaryOperation(
+                    Box::new(Constant(c1)),
+                    BinaryOperation::Div,
+                    Box::new(r)),
+            },
+            _ => Expression::BinaryOperation(
+                Box::new(self),
+                BinaryOperation::Div,
+                Box::new(r)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum UnaryOperation { Inc, Dec }
 
@@ -87,9 +175,9 @@ impl fmt::Display for UnaryOperation {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
-pub enum BinaryOperation { Sum, Sub, Mul, Div }
+pub enum BinaryOperation { Sum, Sub, Mul, Div, Pow }
 
 impl fmt::Display for BinaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -98,6 +186,7 @@ impl fmt::Display for BinaryOperation {
             &BinaryOperation::Sub => "-",
             &BinaryOperation::Mul => "*",
             &BinaryOperation::Div => "/",
+            &BinaryOperation::Pow => "^",
         })
     }
 }

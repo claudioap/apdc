@@ -5,7 +5,7 @@ use std::{fmt, ops};
 pub enum DataType { Bool, Int, Float, Char, String, Function }
 
 /// Constants are either hardcoded literals or evaluated values
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum Constant {
     Bool(bool),
@@ -15,14 +15,41 @@ pub enum Constant {
     Char(char),
 }
 
-impl Constant{
-    pub fn data_type(&self) -> DataType{
-        match self{
+impl Constant {
+    pub fn data_type(&self) -> DataType {
+        match self {
             Constant::Int(_) => DataType::Int,
             Constant::Float(_) => DataType::Float,
             Constant::String(_) => DataType::String,
             Constant::Char(_) => DataType::Char,
             Constant::Bool(_) => DataType::Bool
+        }
+    }
+    pub fn pow(&self, c: &Constant) -> Constant {
+        match self {
+            Constant::Int(i1) => {
+                if let Constant::Int(i2) = c {
+                    Constant::Int(i1.pow(*i2 as u32))
+                } else {
+                    unimplemented!("Power of different data types")
+                }
+            }
+            Constant::Float(f1) => {
+                if let Constant::Float(f2) = c {
+                    Constant::Float(f1.powf(*f2))
+                } else {
+                    unimplemented!("Power of different data types")
+                }
+            }
+            _ => unimplemented!("Power of unsupported data types")
+        }
+    }
+
+    pub fn parse_number(number: &str) -> Constant {
+        if number.contains('.') || number.contains('e') {
+            Constant::Float(number.parse().unwrap())
+        } else {
+            Constant::Int(number.parse().unwrap())
         }
     }
 }
@@ -35,7 +62,6 @@ impl fmt::Display for Constant {
             Constant::Float(i) => write!(f, "{}", i),
             Constant::String(s) => write!(f, "{}", s),
             Constant::Char(c) => write!(f, "{}", c),
-//            Constant::Null => write!(f, "null")
         }
     }
 }

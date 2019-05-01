@@ -81,13 +81,19 @@ impl<'a> Scope<'a> {
 /// Variables are data values that belong to the environment
 /// A variable's type is inferred upon the first usage
 /// Therefore, once the parsing is done, any variable without a error means an error.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Variable {
     id: String,
     data_type: Option<DataType>,
 }
 
 impl Variable {
+    pub fn new(identifier: &str) -> Variable{
+        Variable {
+            id: identifier.to_string(),
+            data_type: None
+        }
+    }
     pub fn eval(&self, _env: &Environment) -> Result<Constant, ()> {
         return Err(());
     }
