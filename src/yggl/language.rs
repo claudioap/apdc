@@ -10,25 +10,25 @@ use crate::yggl::function::Function;
 /// are attached to the program.
 /// Within a program there is a list of root statements.
 #[allow(dead_code)]
-pub struct Program<'a> {
-    environment: Environment<'a>,
+pub struct Program {
+    pub environment: Environment,
     static_vars: HashMap<String, Variable>,
-    statements: LinkedList<Statement<'a>>,
-    functions: Vec<Function<'a>>,
+    statements: LinkedList<Statement>,
+    functions: Vec<Function>,
 }
 
 #[allow(dead_code)]
-impl<'a> Program<'a> {
-    pub fn new() -> Program<'a> {
+impl Program {
+    pub fn new() -> Program {
         Program {
             environment: Environment::new(),
             static_vars: HashMap::new(),
             statements: LinkedList::new(),
-            functions: Vec::new(),
+            functions: vec!()
         }
     }
 
-    pub fn add_statement(&mut self, statement: Statement<'a>) {
+    pub fn add_statement(&mut self, statement: Statement) {
         self.statements.push_back(statement);
     }
 
@@ -48,6 +48,9 @@ impl<'a> Program<'a> {
         }
         output
     }
+
+    pub fn add_function(&mut self, function: Function) -> u32{
+        self.functions.push(function);
+        (self.functions.len()-1) as u32
+    }
 }
-
-

@@ -4,35 +4,67 @@ use std::fmt;
 use crate::yggl::statement::Statement;
 
 /// A program has a set of environments, which hold variable data.
-#[derive(Clone)]
-pub struct Environment<'a> {
-    scopes: LinkedList<Scope<'a>>
+pub struct Environment {
+    scopes: LinkedList<Scope>,
 }
 
 #[allow(dead_code)]
-impl<'a> Environment<'a> {
-    pub fn new() -> Environment<'a> {
+impl Environment {
+    pub fn new() -> Environment {
         let mut scopes = LinkedList::new();
-        scopes.push_back(Scope::new());
-        Environment {
-            scopes,
+        let scope = Scope::new();
+        scopes.push_back(scope);
+        Environment { scopes }
+    }
+
+    pub fn push_scope(&mut self) {
+        let scope = Scope::new();
+        self.scopes.push_front(scope);
+    }
+
+    pub fn pop_scope(&mut self) {
+        if self.scopes.len() == 1 {
+            panic!("Attempted to remove last scope from the environment.")
+        }
+        self.scopes.pop_front();
+    }
+
+    fn get_current_scope(&mut self) -> &mut Scope {
+        self.scopes.front_mut().unwrap()
+    }
+
+    fn get_definition_scope_mut(&mut self, identifier: &str) -> Option<&mut Scope> {
+        for scope in &mut self.scopes {
+            if scope.is_defined(identifier) {
+                return Some(scope);
+            }
+        }
+        None
+    }
+
+
+    fn get_definition_scope(&self, identifier: &str) -> Option<&Scope> {
+        for scope in &self.scopes {
+            if scope.is_defined(identifier) {
+                return Some(scope);
+            }
+        }
+        None
+    }
+
+    pub fn define(&mut self, identifier: &str, constant: Constant) {
+        match self.get_definition_scope_mut(identifier) {
+            Some(scope) => scope.define(identifier, constant),
+            None => self.get_current_scope().define(identifier, constant)
         }
     }
 
-    pub fn declare(&mut self, _identifier: &str, _dtype: &DataType) -> Result<(), ()> {
-        if let Some(_) = self.scopes.back() {
-            Ok(())
-        } else {
-            Err(())
+    pub fn eval(&self, identifier: &str) -> Option<Constant>{
+        match self.get_definition_scope(identifier){
+            Some(scope) => scope.eval(identifier),
+            None => None
         }
-    }
 
-    pub fn define(&mut self, _identifier: &str, _value: Constant) -> Result<(), ()> {
-        if let Some(_) = self.scopes.back() {
-            Ok(())
-        } else {
-            Err(())
-        }
     }
 }
 
@@ -40,69 +72,100 @@ impl<'a> Environment<'a> {
 /// A scope is a slice of the current environment.
 /// Scopes can be stacked on top of each other, and variable resolution is done as a LIFO.
 #[derive(Clone)]
-struct Scope<'a> {
-    constants: HashMap<String, Constant>,
-    variables: HashMap<String, Variable>,
-    statements: LinkedList<Statement<'a>>,
-    parent: Option<Box<Scope<'a>>>,
+struct Scope {
+    symbols: HashMap<String, Variable>,
+    statements: LinkedList<Statement>,
 }
 
 #[allow(dead_code)]
-impl<'a> Scope<'a> {
-    pub fn new() -> Scope<'a> {
+impl Scope {
+    pub fn new() -> Scope {
         Scope {
-            constants: HashMap::new(),
-            variables: HashMap::new(),
+            symbols: HashMap::new(),
             statements: LinkedList::new(),
-            parent: None,
         }
     }
 
-    fn define(&mut self, identifier: &str, dtype: &DataType) -> Result<(), ()> {
-        if self.constants.contains_key(identifier) {
-            return Err(());
+    fn declare(&mut self, identifier: &str) {
+        if self.symbols.contains_key(identifier) {
+            panic!("Declared same variable twice");
+        } else {
+            let var = Variable::new(identifier);
+            self.symbols.insert(identifier.to_string(), var);
         }
-        if let Some(var) = self.variables.get_mut(identifier) {
+    }
+
+    fn define(&mut self, identifier: &str, constant: Constant) {
+        if let Some(mut var) = self.symbols.get_mut(identifier) {
             match &var.data_type {
-                Some(_) => {}
-                None => { var.data_type = Some(dtype.clone()) }
+                Some(dt) if dt.clone() != constant.data_type() =>
+                    panic!("Assigned to variable of different data type"),
+                Some(_) => var.content = Some(constant),
+                None => {
+                    var.data_type = Some(constant.data_type());
+                    var.content = Some(constant);
+                }
             }
         } else {
             let var = Variable {
                 id: identifier.to_string(),
-                data_type: Some(dtype.clone()),
+                data_type: Some(constant.data_type()),
+                content: Some(constant),
             };
-            self.variables.insert(identifier.to_string(), var);
+            self.symbols.insert(identifier.to_string(), var);
         }
-        return Ok(());
+    }
+
+    pub fn is_defined(&self, identifier: &str) -> bool {
+        self.symbols.contains_key(identifier)
+    }
+
+    pub fn get(&self, identifier: &str) -> Option<&Variable> {
+        self.symbols.get(identifier)
+    }
+
+    pub fn eval(&self, identifier: &str) -> Option<Constant> {
+        match self.symbols.get(identifier) {
+            Some(var) => var.content.clone(),
+            None => None
+        }
+    }
+
+    pub fn get_datatype(&self, identifier: &str) -> Option<DataType> {
+        let symbol = self.symbols.get(identifier);
+        if let Some(var) = symbol {
+            var.data_type.clone()
+        } else {
+            None
+        }
     }
 }
 
 /// Variables are data values that belong to the environment
 /// A variable's type is inferred upon the first usage
-/// Therefore, once the parsing is done, any variable without a error means an error.
+/// Therefore, once the parsing is done, any variable without a type is an error.
 #[derive(Clone, Debug)]
 pub struct Variable {
-    pub id: String,
+    id: String,
     data_type: Option<DataType>,
+    content: Option<Constant>,
 }
 
 impl Variable {
-    pub fn new(identifier: &str) -> Variable{
+    pub fn new(identifier: &str) -> Variable {
         Variable {
             id: identifier.to_string(),
-            data_type: None
+            data_type: None,
+            content: None,
         }
     }
-    pub fn eval(&self, _env: &Environment) -> Result<Constant, ()> {
-        return Err(());
-    }
 }
+
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(dtype) = &self.data_type{
+        if let Some(dtype) = &self.data_type {
             write!(f, "{:?} {}", dtype, self.id)
-        }else{
+        } else {
             write!(f, "Unknown {}", self.id)
         }
     }

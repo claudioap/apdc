@@ -1,7 +1,6 @@
 use std::string::ToString;
 use crate::yggl::data::DataType;
 use crate::yggl::environment::Environment;
-use crate::yggl::function::Function;
 use crate::yggl::expression::Expression;
 use std::fmt;
 
@@ -9,15 +8,15 @@ use std::fmt;
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
 #[derive(Clone)]
 #[allow(dead_code)]
-pub enum Statement<'a> {
+pub enum Statement {
     Assignment(String, Expression),
-    FunctionDef(String, Function<'a>),
-    Call(&'a Function<'a>),
+    FunctionDef(String, u32),
+    Call(u32, Vec<Expression>),
     Print(Vec<Expression>),
 }
 
 #[allow(dead_code)]
-impl<'a> Statement<'a> {
+impl Statement {
     pub fn run(&self, env: &mut Environment) {
         match self {
             &Statement::Assignment(ref identifier, ref exp) => {
@@ -36,7 +35,7 @@ impl<'a> Statement<'a> {
     pub fn transpile(&self, env: &mut Environment) -> String {
         match self {
             &Statement::Assignment(ref identifier, ref exp) => {
-                format!("{} = {};", identifier, exp.transpile(env))
+                format!("\n{} = {};", identifier, exp.transpile(env))
             }
             &Statement::Print(ref expressions) => {
                 let mut format_string = String::new();
@@ -68,21 +67,22 @@ impl<'a> Statement<'a> {
                     }
                 }
 
-                format!("printf(\"{}\"{});", format_string, expressions_string)
-            }
-            _ => { "".to_string() }
+                format!("\nprintf(\"{}\"{});", format_string, expressions_string)
+            },
+            &Statement::FunctionDef(_, _) => {"".to_string()},
+            &Statement::Call(_, _) => {"".to_string()},
         }
     }
 }
 
-impl<'a> fmt::Display for Statement<'a> {
+impl<'a> fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Statement::Assignment(id, exp) =>
                 write!(f, "Assign {}->{}", exp, id),
             Statement::FunctionDef(id, _) => write!(f, "Assign Fun->{}", id),
-            Statement::Call(_) => write!(f, "FunCall"),
-            Statement::Print(_) => write!(f, "A print statement")
+            Statement::Call(_,_) => write!(f, "FunCall"),
+            Statement::Print(_) => write!(f, "A print statement"),
         }
     }
 }

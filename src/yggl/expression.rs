@@ -1,4 +1,4 @@
-use crate::yggl::environment::{Environment, Variable};
+use crate::yggl::environment::Environment;
 use crate::yggl::data::{Constant, DataType};
 use std::{fmt, ops};
 
@@ -6,7 +6,7 @@ use std::{fmt, ops};
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum Expression {
-    Variable(Variable),
+    Variable(String),
     Constant(Constant),
     UnaryOperation(Box<Expression>, UnaryOperation),
     BinaryOperation(Box<Expression>, BinaryOperation, Box<Expression>),
@@ -17,10 +17,7 @@ impl Expression {
         match self {
             &Expression::Constant(ref c) => c.clone(),
             &Expression::Variable(ref var) => {
-                match var.eval(environment) {
-                    Ok(c) => c,
-                    Err(_) => { panic!("sdfsdf") }
-                }
+                environment.eval(var.as_str()).unwrap()
             }
             &Expression::UnaryOperation(ref exp, ref op) => {
                 match op {
@@ -52,7 +49,7 @@ impl Expression {
     pub fn transpile(&self, env: &mut Environment) -> String {
         match self {
             &Expression::Constant(ref c) => format!("{}", c),
-            &Expression::Variable(ref v) => format!("{}", v.id),
+            &Expression::Variable(ref v) => format!("{}", v),
             &Expression::UnaryOperation(ref exp, ref op) => {
                 format!("({}{})", op, exp.transpile(env))
             }

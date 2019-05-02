@@ -26,7 +26,7 @@ dict = {
 /* ########## VARIABLES AND EVALUATION ########## */
 identifier = @{!ASCII_DIGIT ~(ASCII_ALPHANUMERIC | "_" | "-")+}
 value = _{string | number | boolean | dict | identifier }
-evaluable = _{ "("~ evaluable ~")" | function | function_call | object | object_call | value | identifier}
+evaluable = _{ "("~ evaluable ~")" | function_call | object | object_call | value | identifier}
 
 
 binop = _{add|sub|mul|div|pow}
@@ -53,7 +53,7 @@ function = {
 }
 
 /* ########## OPERATIONS ########## */
-atribution = {identifier ~ "=" ~ expression}
+atribution = {identifier ~ "=" ~ (function|expression)}
 function_call = {identifier ~ arguments}
 object_call = {identifier ~ "." ~ identifier ~ arguments}
 
@@ -63,32 +63,3 @@ program = _{ SOI ~ statement+ ~ EOI }
 /* BUILT IN DEFINITIONS */
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
-
-
-
-
-
-/*expression = {negation | multiplicative_op | adictive_op | evaluable | "(" ~ expression ~ ")"}
-negation = {"!" ~ ("(" ~ expression ~ ")" ~ expression)}
-multiplicative_op = {(evaluable|"(" ~ expression ~ ")") ~ ("*"|"/")  ~ (evaluable|"(" ~ expression ~ ")")}
-adictive_op = {(evaluable|"(" ~ expression ~ ")"|multiplicative_op) ~ ("+"|"-") ~ (evaluable|"(" ~ expression ~ ")"|multiplicative_op)}
-equality_op = {adictive_op ~ (("=="|"!=") ~ adictive_op)*}
-
-
-
-
-expression = {
-	negation ~ expression
-    | (multiplication | addition | comparison_op)
-    | evaluable | "(" ~ expression ~ ")"}
-negation = {"!"}
-multiplication = {(evaluable|"(" ~ expression ~ ")") ~ ("*"|"/")  ~ (evaluable|"(" ~ expression ~ ")")}
-addition = {(evaluable|"(" ~ expression ~ ")"|multiplication) ~ ("+"|"-") ~ (evaluable|"(" ~ expression ~ ")"|multiplication)}
-comparison_op = {(evaluable|"(" ~ expression ~ ")"|addition) ~ ("=="|"!=") ~ (evaluable|"(" ~ expression ~ ")"|addition)}
-
-expression = { multiplication | addition | comparison | subexpression}
-subexpression = _{(evaluable| negation |"(" ~ expression ~ ")")}
-negation = {"!" ~ subexpression}
-multiplication = { subexpression ~ ("*"|"/") ~ subexpression}
-addition = {subexpression ~ ("+"|"-") ~ subexpression}
-comparison = {subexpression ~ ("=="|"!=") ~ subexpression}*/

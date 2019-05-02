@@ -1,7 +1,7 @@
 use std::{fmt, ops};
 
-#[derive(Clone, Debug)]
 #[allow(dead_code)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum DataType { Bool, Int, Float, Char, String, Function }
 
 /// Constants are either hardcoded literals or evaluated values

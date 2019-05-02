@@ -64,13 +64,13 @@ pub fn lex(code: &str) -> Result<Pairs<Rule>, &str> {
     unreachable!();
 }
 
-impl<'a> Program<'a> {
+impl Program {
     pub fn from(pairs: Pairs<Rule>) -> Result<Program, CompilationError> {
         let mut program = Program::new();
         for pair in pairs {
             match pair.as_rule() {
                 Rule::statement => {
-                    let statement = Statement::from(pair)?;
+                    let statement = Statement::from(pair, &mut program)?;
                     program.add_statement(statement);
                 }
                 Rule::EOI => {}
@@ -81,29 +81,30 @@ impl<'a> Program<'a> {
     }
 }
 
-impl<'a> Statement<'a> {
-    pub fn from(pair: Pair<'a, Rule>) -> Result<Statement<'a>, CompilationError> {
-        println!("Statement: {}", pair);
+impl Statement{
+    pub fn from(pair: Pair<Rule>, program: &mut Program) -> Result<Statement, CompilationError> {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
             Rule::atribution => {
                 let mut inner_rules = pair.into_inner();
                 let mut pair = inner_rules.next().unwrap();
-                let identifier = pair.as_str().to_string();
+                let identifier = pair.to_string();
                 pair = inner_rules.next().unwrap();
                 match pair.as_rule() {
                     Rule::expression => {
-                        println!("Expression: {}", pair);
                         let expression = Expression::from(pair).unwrap();
                         return Ok(Statement::Assignment(identifier, expression));
                     }
                     Rule::function => {
-                        println!("Function: {}", pair);
-                        let function = Function::from(pair)?;
-                        return Ok(Statement::FunctionDef(identifier, function));
+                        let function = Function::from(pair, program)?;
+                        let function_index = program.add_function(function);
+                        return Ok(Statement::FunctionDef(identifier,function_index));
                     }
                     _ => unreachable!()
                 }
+            }
+            Rule::function_call => {
+                Function::parse_call(pair)
             }
             _ => unreachable!()
         }
@@ -134,8 +135,7 @@ impl Expression {
                     Rule::number => //TODO Trait std::str::FromStr
                         Ok(Expression::Constant(Constant::parse_number(pair.as_str()))),
                     Rule::identifier => {
-                        let var = Variable::new(pair.as_str());
-                        Ok(Expression::Variable(var))
+                        Ok(Expression::Variable(pair.to_string()))
                     }
                     _ => unreachable!("\n{:?}\n", pair),
                 },
@@ -156,5 +156,62 @@ impl Expression {
                     }
                 },
         )
+    }
+}
+
+impl Function{
+    pub fn from(pair: Pair<Rule>, program: &mut Program) -> Result<Function, CompilationError> {
+        let parameters: Option<Vec<Variable>> = Option::None;
+        let mut statements: LinkedList<Statement> = LinkedList::new();
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::parameters => {
+                    println!("Found a parameter list");
+                    Function::read_parameters(pair);
+                }
+                Rule::statement => {
+                    println!("Found a statement {:?}", pair);
+                    let statement = Statement::from(pair, program)?;
+                    statements.push_back(statement);
+                }
+                _ => unreachable!()
+            }
+        }
+        if statements.is_empty() {
+            return Err(
+                CompilationError::new(
+                    0,
+                    0,
+                    "".to_string(),
+                    "Function definition without statements".to_string()));
+        }
+        if let Some(parameters_vec) = parameters {
+            Ok(Function::new(parameters_vec, statements))
+        } else {
+            Ok(Function::new(vec!(), statements))
+        }
+    }
+
+    fn read_parameters(pair: Pair<Rule>) -> Vec<Variable> {
+        println!("{:?}", pair);
+        vec![]
+    }
+
+
+    fn read_arguments(pair: Pair<Rule>) -> Vec<Expression> {
+        println!("{:?}", pair);
+        vec![]
+    }
+
+    fn parse_call(pair: Pair<Rule>) -> Result<Statement, CompilationError> {
+        let mut inner_rules = pair.into_inner();
+        let identifier = inner_rules.next().unwrap().as_str();
+        let arguments = Function::read_arguments(inner_rules.next().unwrap());
+        let statement = if identifier == "print" {
+            Statement::Print(arguments)
+        } else {
+            Statement::Call(0, arguments)
+        };
+        Ok(statement)
     }
 }
