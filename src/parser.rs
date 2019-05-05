@@ -111,6 +111,8 @@ impl Statement{
     }
 }
 
+/// Define the precedence climber for an Expression.
+/// This tells a parser which operations to parse first in an unparsed expression.
 lazy_static! {
     static ref BINOP_CLIMBER: PrecClimber<Rule> = {
         use Rule::*;

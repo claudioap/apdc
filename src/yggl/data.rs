@@ -5,7 +5,7 @@ use std::{fmt, ops};
 pub enum DataType { Bool, Int, Float, Char, String, Function }
 
 /// Constants are either hardcoded literals or evaluated values
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
 pub enum Constant {
     Bool(bool),
