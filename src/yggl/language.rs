@@ -1,7 +1,8 @@
-use std::collections::{HashMap, LinkedList};
+use std::collections::{HashMap, LinkedList, HashSet};
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::function::Function;
+use std::fmt;
 
 
 /// A program is the AST root.
@@ -15,6 +16,7 @@ pub struct Program {
     static_vars: HashMap<String, Variable>,
     statements: LinkedList<Statement>,
     functions: Vec<Function>,
+    includes: HashSet<Include>,
 }
 
 #[allow(dead_code)]
@@ -24,7 +26,8 @@ impl Program {
             environment: Environment::new(),
             static_vars: HashMap::new(),
             statements: LinkedList::new(),
-            functions: vec!()
+            functions: vec!(),
+            includes: HashSet::new(),
         }
     }
 
@@ -39,28 +42,56 @@ impl Program {
     }
 
     pub fn transpile(&mut self) -> String {
-        let includes = "#include <stdio.h>\n";
         let mut output = String::new();
-        output.reserve(10000);
-        output.push_str(includes);
+        output.reserve(1024 * 1024); // Reserve 1MB upfront as the new program buffer
+        output.push_str("// Includes");
+        for include in &self.includes {
+            output.push_str(format!("{}\n", include).as_str());
+        }
+        output.push_str("int main(){");
         for statement in &self.statements {
+            output.push_str("    ");
             output.push_str(statement.transpile(&self, &self.environment).as_str());
             output.push_str("\n");
         }
+        output.push_str("    return 0;\n}");
         output
     }
 
-    pub fn add_function(&mut self, function: Function) -> usize{
+    pub fn add_function(&mut self, function: Function) -> usize {
         self.functions.push(function);
-        self.functions.len()-1
+        self.functions.len() - 1
     }
 
 
-    pub fn get_env(&self) -> &Environment{
+    pub fn get_env(&self) -> &Environment {
         &self.environment
     }
 
-    pub fn get_function(&self, identifier: usize) -> &Function{
+    pub fn get_function(&self, identifier: usize) -> &Function {
         &self.functions[identifier]
+    }
+
+    pub fn require_include(&mut self, include: Include) {
+        self.includes.insert(include);
+    }
+}
+
+#[derive(PartialOrd, PartialEq, Eq, Hash, Debug)]
+pub struct Include {
+    name: String,
+    std: bool,
+    path: Option<String>,
+}
+
+impl fmt::Display for Include {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.std {
+            write!(f, "#include <{}>", self.name)
+        } else if let Some(path) = &self.path {
+            write!(f, "#include \"{}\\{}\"", path, self.name)
+        } else {
+            write!(f, "#include \"{}\"", self.name)
+        }
     }
 }
