@@ -159,6 +159,14 @@ impl Variable {
             content: None,
         }
     }
+
+    pub fn get_identifier(&self) -> &str{
+        self.id.as_str()
+    }
+
+    pub fn get_type(&self) -> Option<DataType>{
+        self.data_type.clone()
+    }
 }
 
 impl fmt::Display for Variable {

@@ -46,7 +46,7 @@ impl Expression {
         }
     }
 
-    pub fn transpile(&self, env: &mut Environment) -> String {
+    pub fn transpile(&self, env: &Environment) -> String {
         match self {
             &Expression::Constant(ref c) => format!("{}", c),
             &Expression::Variable(ref v) => format!("{}", v),

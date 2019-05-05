@@ -88,7 +88,7 @@ impl Statement{
             Rule::atribution => {
                 let mut inner_rules = pair.into_inner();
                 let mut pair = inner_rules.next().unwrap();
-                let identifier = pair.to_string();
+                let identifier = pair.as_str().to_string();
                 pair = inner_rules.next().unwrap();
                 match pair.as_rule() {
                     Rule::expression => {
@@ -137,7 +137,7 @@ impl Expression {
                     Rule::number => //TODO Trait std::str::FromStr
                         Ok(Expression::Constant(Constant::parse_number(pair.as_str()))),
                     Rule::identifier => {
-                        Ok(Expression::Variable(pair.to_string()))
+                        Ok(Expression::Variable(pair.as_str().to_string()))
                     }
                     _ => unreachable!("\n{:?}\n", pair),
                 },

@@ -4,6 +4,19 @@ use std::{fmt, ops};
 #[derive(Clone, PartialEq, Debug)]
 pub enum DataType { Bool, Int, Float, Char, String, Function }
 
+impl DataType{
+    pub fn transpile(&self) -> &str{
+        match self {
+            DataType::Bool => "int",
+            DataType::Int => "int",
+            DataType::Float => "float",
+            DataType::Char => "char",
+            DataType::String => panic!("Not meant to be transpiled."),
+            DataType::Function => panic!("Not meant to be transpiled."),
+        }
+    }
+}
+
 /// Constants are either hardcoded literals or evaluated values
 #[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]

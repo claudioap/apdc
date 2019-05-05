@@ -11,7 +11,7 @@ use crate::yggl::function::Function;
 /// Within a program there is a list of root statements.
 #[allow(dead_code)]
 pub struct Program {
-    pub environment: Environment,
+    environment: Environment,
     static_vars: HashMap<String, Variable>,
     statements: LinkedList<Statement>,
     functions: Vec<Function>,
@@ -44,13 +44,23 @@ impl Program {
         output.reserve(10000);
         output.push_str(includes);
         for statement in &self.statements {
-            output.push_str(statement.transpile(&mut self.environment).as_str());
+            output.push_str(statement.transpile(&self, &self.environment).as_str());
+            output.push_str("\n");
         }
         output
     }
 
-    pub fn add_function(&mut self, function: Function) -> u32{
+    pub fn add_function(&mut self, function: Function) -> usize{
         self.functions.push(function);
-        (self.functions.len()-1) as u32
+        self.functions.len()-1
+    }
+
+
+    pub fn get_env(&self) -> &Environment{
+        &self.environment
+    }
+
+    pub fn get_function(&self, identifier: usize) -> &Function{
+        &self.functions[identifier]
     }
 }
