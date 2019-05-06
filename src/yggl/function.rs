@@ -2,7 +2,7 @@ use std::collections::{HashMap, LinkedList};
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::language::Program;
-use crate::yggl::data::{DataType, Evaluable};
+use crate::yggl::data::{DataType, Evaluable, Constant};
 use crate::parser::CompilationError;
 
 /// The concept of a function, which is treated like subprogram within the program.
@@ -18,6 +18,7 @@ pub struct Function {
     return_type: Option<DataType>,
 }
 
+#[allow(dead_code)]
 impl Function {
     pub fn new(name: String, parameters: Vec<Variable>, statements: LinkedList<Statement>) -> Result<Function, CompilationError> {
         let dtype = Function::determine_return(&statements)?;
@@ -48,14 +49,14 @@ impl Function {
         Ok(None)
     }
 
-    pub fn transpile(&self, program: &Program, identifier: &str) -> String {
+    pub fn transpile(&self, program: &Program) -> String {
         let rtype = match &self.return_type {
             Some(dtype) => dtype.transpile(),
             _ => "void"
         };
         let mut result = String::new();
         result.reserve(1024 * 10); // Reserve 10 KB to prevent further allocations
-        result.push_str(format!("\n{} {}((", rtype, identifier).as_str());
+        result.push_str(format!("{} {}((", rtype, self.name).as_str());
         for parameter in &self.parameters {
             let dtype = parameter.get_type().expect("Parameter type unknown");
             let identifier = parameter.get_identifier();
@@ -74,16 +75,41 @@ impl Function {
         result.push_str("}\n");
         result
     }
+
+    pub fn data_type(&self) -> Option<DataType> {
+        self.return_type.clone()
+    }
+
+    pub fn call(&mut self) -> Option<Constant> {
+        None
+    }
 }
 
-pub struct FunctionRef {
-    index: usize,
+#[allow(dead_code)]
+pub struct FunctionCall {
     // Functions vector index
+    index: usize,
     dtype: Option<DataType>,
+    arguments: Vec<Box<Evaluable>>,
 }
 
-impl Evaluable for FunctionRef {
+#[allow(dead_code)]
+impl FunctionCall {
+    pub fn new(index: usize, dtype: Option<DataType>, arguments: Vec<Box<Evaluable>>) -> FunctionCall {
+        FunctionCall { index, dtype, arguments }
+    }
+
+    pub fn get_index(&self) -> usize {
+        return self.index;
+    }
+}
+
+impl Evaluable for FunctionCall {
     fn data_type(&self) -> Option<DataType> {
         self.dtype.clone()
+    }
+
+    fn eval(&self, program: &mut Program) -> Option<Constant> {
+        program.call_function(self.index)
     }
 }

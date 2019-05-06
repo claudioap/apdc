@@ -1,4 +1,5 @@
 use std::{fmt, ops};
+use crate::yggl::language::Program;
 
 #[allow(dead_code)]
 #[derive(Clone, PartialEq, Debug)]
@@ -19,6 +20,7 @@ impl DataType {
 
 pub trait Evaluable {
     fn data_type(&self) -> Option<DataType>;
+    fn eval(&self, program: &mut Program) -> Option<Constant>;
 }
 
 /// Constants are either hardcoded literals or evaluated values
@@ -71,6 +73,10 @@ impl Evaluable for Constant {
             Constant::Char(_) => DataType::Char,
             Constant::Bool(_) => DataType::Bool
         })
+    }
+
+    fn eval(&self, _program: &mut Program) -> Option<Constant> {
+        Some(self.clone())
     }
 }
 

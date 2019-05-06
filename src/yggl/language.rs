@@ -2,6 +2,7 @@ use std::collections::{HashMap, LinkedList, HashSet};
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::function::Function;
+use crate::yggl::data::Constant;
 use std::fmt;
 
 
@@ -44,11 +45,16 @@ impl Program {
     pub fn transpile(&mut self) -> String {
         let mut output = String::new();
         output.reserve(1024 * 1024); // Reserve 1MB upfront as the new program buffer
-        output.push_str("// Includes");
+        output.push_str("// Includes\n");
         for include in &self.includes {
             output.push_str(format!("{}\n", include).as_str());
         }
-        output.push_str("int main(){");
+        output.push_str("\n// Functions\n");
+        for function in &self.functions {
+            output.push_str(function.transpile(&self).as_str());
+            output.push('\n');
+        }
+        output.push_str("int main(){\n");
         for statement in &self.statements {
             output.push_str("    ");
             output.push_str(statement.transpile(&self, &self.environment).as_str());
@@ -63,13 +69,16 @@ impl Program {
         self.functions.len() - 1
     }
 
-
     pub fn get_env(&self) -> &Environment {
         &self.environment
     }
 
     pub fn get_function(&self, identifier: usize) -> &Function {
         &self.functions[identifier]
+    }
+
+    pub fn call_function(&mut self, identifier: usize) -> Option<Constant> {
+        self.functions[identifier].call()
     }
 
     pub fn require_include(&mut self, include: Include) {
@@ -82,6 +91,12 @@ pub struct Include {
     name: String,
     std: bool,
     path: Option<String>,
+}
+
+impl Include {
+    pub fn new(name: String, std: bool, path: Option<String>) -> Include {
+        Include { name, std, path }
+    }
 }
 
 impl fmt::Display for Include {

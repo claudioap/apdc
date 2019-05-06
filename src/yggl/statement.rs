@@ -4,14 +4,15 @@ use crate::yggl::environment::Environment;
 use crate::yggl::expression::Expression;
 use std::fmt;
 use crate::yggl::language::Program;
+use crate::yggl::function::FunctionCall;
 
 /// Statements are standalone instructions.
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
 #[allow(dead_code)]
 pub enum Statement {
     Assignment(String, Expression),
-    FunctionDef(String, usize),
-    Call(usize, Vec<Expression>),
+    FunctionDef(usize),
+    Call(FunctionCall, Vec<Expression>),
     Print(Vec<Expression>),
     Return(Box<Evaluable>),
 }
@@ -33,7 +34,7 @@ impl Statement {
         }
     }
 
-    pub fn transpile(&self, program: &Program, env: &Environment) -> String {
+    pub fn transpile(&self, _program: &Program, env: &Environment) -> String {
         match self {
             &Statement::Assignment(ref identifier, ref exp) => {
                 format!("{} = {};", identifier, exp.transpile(env))
@@ -62,17 +63,12 @@ impl Statement {
                         }
                         expressions_string.push_str(",");
                         expressions_string.push_str(expression.transpile(env).as_str());
-                        ;
                     } else {
                         panic!("Print of non-valued expression");
                     }
                 }
 
                 format!("printf(\"{}\"{});", format_string, expressions_string)
-            }
-            &Statement::FunctionDef(ref identifier, function_id) => {
-                let function = program.get_function(function_id);
-                function.transpile(program, identifier.as_str())
             }
             _ => { "".to_string() }
         }
@@ -84,7 +80,7 @@ impl<'a> fmt::Display for Statement {
         match self {
             Statement::Assignment(id, exp) =>
                 write!(f, "Assign {}->{}", exp, id),
-            Statement::FunctionDef(id, _) => write!(f, "Assign Fun->{}", id),
+            Statement::FunctionDef(id) => write!(f, "Assign Fun->{}", id),
             Statement::Call(_, _) => write!(f, "FunCall"),
             Statement::Print(_) => write!(f, "A print statement"),
             Statement::Return(_) => write!(f, "A return statement"),

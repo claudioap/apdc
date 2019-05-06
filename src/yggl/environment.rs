@@ -2,6 +2,7 @@ use std::collections::{HashMap, LinkedList};
 use crate::yggl::data::{Constant, DataType, Evaluable};
 use std::fmt;
 use crate::yggl::statement::Statement;
+use crate::yggl::language::Program;
 
 /// A program has a set of environments, which hold variable data.
 pub struct Environment {
@@ -171,6 +172,10 @@ impl Variable {
 impl Evaluable for Variable {
     fn data_type(&self) -> Option<DataType> {
         self.data_type.clone()
+    }
+
+    fn eval(&self, _program: &mut Program) -> Option<Constant> {
+        self.content.clone()
     }
 }
 

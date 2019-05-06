@@ -7,7 +7,7 @@ use pest::prec_climber::*;
 use crate::yggl::data::Constant;
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
-use crate::yggl::language::Program;
+use crate::yggl::language::{Program, Include};
 use crate::yggl::environment::Variable;
 use crate::yggl::function::*;
 use std::collections::linked_list::LinkedList;
@@ -96,15 +96,20 @@ impl Statement {
                         return Ok(Statement::Assignment(identifier, expression));
                     }
                     Rule::function => {
-                        let function = Function::from(pair, program, identifier.clone())?;
+                        let function = Function::from(pair, program, identifier)?;
                         let function_index = program.add_function(function);
-                        return Ok(Statement::FunctionDef(identifier, function_index));
+                        return Ok(Statement::FunctionDef(function_index));
                     }
                     _ => unreachable!()
                 }
             }
             Rule::function_call => {
-                Function::parse_call(pair)
+                let call = Function::parse_call(pair);
+                if let Ok(Statement::Print(_)) = call {
+                    program.require_include(
+                        Include::new("stdio.h".to_string(), true, None))
+                }
+                call
             }
             _ => unreachable!()
         }
@@ -212,7 +217,7 @@ impl Function {
         let statement = if identifier == "print" {
             Statement::Print(arguments)
         } else {
-            Statement::Call(0, arguments)
+            Statement::Call(FunctionCall::new(0, None, vec!()), arguments)
         };
         Ok(statement)
     }
