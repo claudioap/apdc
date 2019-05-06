@@ -9,6 +9,7 @@ use crate::yggl::data::DataType;
 /// BUT outside static variables should be accessible (TODO)
 #[allow(dead_code)]
 pub struct Function {
+    name: String,
     parameters: Vec<Variable>,
     environment: Environment,
     static_vars: HashMap<String, Variable>,
@@ -17,14 +18,20 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(parameters: Vec<Variable>, statements: LinkedList<Statement>) -> Function {
+    pub fn new(name: String, parameters: Vec<Variable>, statements: LinkedList<Statement>) -> Function {
+        let dtype = Function::determine_return(&statements);
         Function {
+            name,
             parameters,
             environment: Environment::new(),
             static_vars: HashMap::new(),
             statements,
-            return_type: None,
+            return_type: dtype,
         }
+    }
+
+    fn determine_return(_statements: &LinkedList<Statement>) -> Option<DataType> {
+        None
     }
 
     pub fn transpile(&self, program: &Program, identifier: &str) -> String {
@@ -32,14 +39,16 @@ impl Function {
             Some(dtype) => dtype.transpile(),
             _ => "void"
         };
-        let mut result = format!("\n{} {}((", rtype, identifier);
+        let mut result = String::new();
+        result.reserve(1024 * 10); // Reserve 10 KB to prevent further allocations
+        result.push_str(format!("\n{} {}((", rtype, identifier).as_str());
         for parameter in &self.parameters {
             let dtype = parameter.get_type().expect("Parameter type unknown");
             let identifier = parameter.get_identifier();
             result.push_str(dtype.transpile());
-            result.push_str(" ");
+            result.push(' ');
             result.push_str(identifier);
-            result.push_str(",");
+            result.push(',');
         }
         result.pop();// Remove last comma
         result.push_str("){\n");

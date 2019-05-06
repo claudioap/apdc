@@ -96,7 +96,7 @@ impl Statement{
                         return Ok(Statement::Assignment(identifier, expression));
                     }
                     Rule::function => {
-                        let function = Function::from(pair, program)?;
+                        let function = Function::from(pair, program, identifier.clone())?;
                         let function_index = program.add_function(function);
                         return Ok(Statement::FunctionDef(identifier,function_index));
                     }
@@ -162,7 +162,7 @@ impl Expression {
 }
 
 impl Function{
-    pub fn from(pair: Pair<Rule>, program: &mut Program) -> Result<Function, CompilationError> {
+    pub fn from(pair: Pair<Rule>, program: &mut Program, name: String) -> Result<Function, CompilationError> {
         let parameters: Option<Vec<Variable>> = Option::None;
         let mut statements: LinkedList<Statement> = LinkedList::new();
         for pair in pair.into_inner() {
@@ -188,9 +188,9 @@ impl Function{
                     "Function definition without statements".to_string()));
         }
         if let Some(parameters_vec) = parameters {
-            Ok(Function::new(parameters_vec, statements))
+            Ok(Function::new(name, parameters_vec, statements))
         } else {
-            Ok(Function::new(vec!(), statements))
+            Ok(Function::new(name, vec!(), statements))
         }
     }
 
