@@ -26,7 +26,7 @@ pub struct CompilationError {
 }
 
 impl CompilationError {
-    fn new(line: u32, col: u32, code: String, cause: String) -> CompilationError {
+    pub fn new(line: u32, col: u32, code: String, cause: String) -> CompilationError {
         CompilationError {
             line,
             col,
@@ -81,7 +81,7 @@ impl Program {
     }
 }
 
-impl Statement{
+impl Statement {
     pub fn from(pair: Pair<Rule>, program: &mut Program) -> Result<Statement, CompilationError> {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
@@ -98,7 +98,7 @@ impl Statement{
                     Rule::function => {
                         let function = Function::from(pair, program, identifier.clone())?;
                         let function_index = program.add_function(function);
-                        return Ok(Statement::FunctionDef(identifier,function_index));
+                        return Ok(Statement::FunctionDef(identifier, function_index));
                     }
                     _ => unreachable!()
                 }
@@ -161,7 +161,7 @@ impl Expression {
     }
 }
 
-impl Function{
+impl Function {
     pub fn from(pair: Pair<Rule>, program: &mut Program, name: String) -> Result<Function, CompilationError> {
         let parameters: Option<Vec<Variable>> = Option::None;
         let mut statements: LinkedList<Statement> = LinkedList::new();
@@ -188,9 +188,9 @@ impl Function{
                     "Function definition without statements".to_string()));
         }
         if let Some(parameters_vec) = parameters {
-            Ok(Function::new(name, parameters_vec, statements))
+            Function::new(name, parameters_vec, statements)
         } else {
-            Ok(Function::new(name, vec!(), statements))
+            Function::new(name, vec!(), statements)
         }
     }
 

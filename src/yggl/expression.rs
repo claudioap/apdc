@@ -1,5 +1,5 @@
 use crate::yggl::environment::Environment;
-use crate::yggl::data::{Constant, DataType};
+use crate::yggl::data::{Constant, DataType, Evaluable};
 use std::{fmt, ops};
 
 /// Expressions represent portions of code that evaluate to values
@@ -39,7 +39,7 @@ impl Expression {
 
     pub fn data_type(&self) -> Option<DataType> {
         match self {
-            &Expression::Constant(ref c) => Some(c.data_type()),
+            &Expression::Constant(ref c) => c.data_type(),
             &Expression::UnaryOperation(ref exp, _) => exp.data_type(),
             &Expression::BinaryOperation(ref exp, _, _) => exp.data_type(),
             _ => { None }

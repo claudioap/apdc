@@ -2,7 +2,8 @@ use std::collections::{HashMap, LinkedList};
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::language::Program;
-use crate::yggl::data::DataType;
+use crate::yggl::data::{DataType, Evaluable};
+use crate::parser::CompilationError;
 
 /// The concept of a function, which is treated like subprogram within the program.
 /// Functions have their own environments. Outside variables aren't accessible from the inside,
@@ -18,20 +19,33 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(name: String, parameters: Vec<Variable>, statements: LinkedList<Statement>) -> Function {
-        let dtype = Function::determine_return(&statements);
-        Function {
+    pub fn new(name: String, parameters: Vec<Variable>, statements: LinkedList<Statement>) -> Result<Function, CompilationError> {
+        let dtype = Function::determine_return(&statements)?;
+        Ok(Function {
             name,
             parameters,
             environment: Environment::new(),
             static_vars: HashMap::new(),
             statements,
             return_type: dtype,
-        }
+        })
     }
 
-    fn determine_return(_statements: &LinkedList<Statement>) -> Option<DataType> {
-        None
+    fn determine_return(statements: &LinkedList<Statement>) -> Result<Option<DataType>, CompilationError> {
+        let mut dtype: Option<DataType> = None;
+        for statement in statements {
+            if let Statement::Return(ref evaluable) = statement {
+                if dtype == None {
+                    dtype = evaluable.data_type();
+                } else if dtype != evaluable.data_type() {
+                    return Err(
+                        CompilationError::new(
+                            0, 0, "".to_string(),
+                            "Function returns two different data types".to_string()));
+                }
+            }
+        }
+        Ok(None)
     }
 
     pub fn transpile(&self, program: &Program, identifier: &str) -> String {
@@ -59,5 +73,17 @@ impl Function {
         }
         result.push_str("}\n");
         result
+    }
+}
+
+pub struct FunctionRef {
+    index: usize,
+    // Functions vector index
+    dtype: Option<DataType>,
+}
+
+impl Evaluable for FunctionRef {
+    fn data_type(&self) -> Option<DataType> {
+        self.dtype.clone()
     }
 }

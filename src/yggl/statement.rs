@@ -1,5 +1,5 @@
 use std::string::ToString;
-use crate::yggl::data::DataType;
+use crate::yggl::data::{DataType, Evaluable};
 use crate::yggl::environment::Environment;
 use crate::yggl::expression::Expression;
 use std::fmt;
@@ -7,12 +7,13 @@ use crate::yggl::language::Program;
 
 /// Statements are standalone instructions.
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
-#[derive(Clone)]
+#[allow(dead_code)]
 pub enum Statement {
     Assignment(String, Expression),
     FunctionDef(String, usize),
     Call(usize, Vec<Expression>),
     Print(Vec<Expression>),
+    Return(Box<Evaluable>),
 }
 
 #[allow(dead_code)]
@@ -73,7 +74,7 @@ impl Statement {
                 let function = program.get_function(function_id);
                 function.transpile(program, identifier.as_str())
             }
-            &Statement::Call(_, _) => { "".to_string() }
+            _ => { "".to_string() }
         }
     }
 }
@@ -86,6 +87,7 @@ impl<'a> fmt::Display for Statement {
             Statement::FunctionDef(id, _) => write!(f, "Assign Fun->{}", id),
             Statement::Call(_, _) => write!(f, "FunCall"),
             Statement::Print(_) => write!(f, "A print statement"),
+            Statement::Return(_) => write!(f, "A return statement"),
         }
     }
 }

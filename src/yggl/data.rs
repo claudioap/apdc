@@ -4,8 +4,8 @@ use std::{fmt, ops};
 #[derive(Clone, PartialEq, Debug)]
 pub enum DataType { Bool, Int, Float, Char, String, Function }
 
-impl DataType{
-    pub fn transpile(&self) -> &str{
+impl DataType {
+    pub fn transpile(&self) -> &str {
         match self {
             DataType::Bool => "int",
             DataType::Int => "int",
@@ -15,6 +15,10 @@ impl DataType{
             DataType::Function => panic!("Not meant to be transpiled."),
         }
     }
+}
+
+pub trait Evaluable {
+    fn data_type(&self) -> Option<DataType>;
 }
 
 /// Constants are either hardcoded literals or evaluated values
@@ -29,15 +33,6 @@ pub enum Constant {
 }
 
 impl Constant {
-    pub fn data_type(&self) -> DataType {
-        match self {
-            Constant::Int(_) => DataType::Int,
-            Constant::Float(_) => DataType::Float,
-            Constant::String(_) => DataType::String,
-            Constant::Char(_) => DataType::Char,
-            Constant::Bool(_) => DataType::Bool
-        }
-    }
     pub fn pow(&self, c: &Constant) -> Constant {
         match self {
             Constant::Int(i1) => {
@@ -64,6 +59,18 @@ impl Constant {
         } else {
             Constant::Int(number.parse().unwrap())
         }
+    }
+}
+
+impl Evaluable for Constant {
+    fn data_type(&self) -> Option<DataType> {
+        Some(match self {
+            Constant::Int(_) => DataType::Int,
+            Constant::Float(_) => DataType::Float,
+            Constant::String(_) => DataType::String,
+            Constant::Char(_) => DataType::Char,
+            Constant::Bool(_) => DataType::Bool
+        })
     }
 }
 

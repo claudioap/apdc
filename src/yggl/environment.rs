@@ -1,5 +1,5 @@
 use std::collections::{HashMap, LinkedList};
-use crate::yggl::data::{Constant, DataType};
+use crate::yggl::data::{Constant, DataType, Evaluable};
 use std::fmt;
 use crate::yggl::statement::Statement;
 
@@ -59,19 +59,18 @@ impl Environment {
         }
     }
 
-    pub fn eval(&self, identifier: &str) -> Option<Constant>{
-        match self.get_definition_scope(identifier){
+    pub fn eval(&self, identifier: &str) -> Option<Constant> {
+        match self.get_definition_scope(identifier) {
             Some(scope) => scope.eval(identifier),
             None => None
         }
-
     }
 }
 
 
 /// A scope is a slice of the current environment.
 /// Scopes can be stacked on top of each other, and variable resolution is done as a LIFO.
-#[derive(Clone)]
+#[allow(dead_code)]
 struct Scope {
     symbols: HashMap<String, Variable>,
     statements: LinkedList<Statement>,
@@ -98,18 +97,18 @@ impl Scope {
     fn define(&mut self, identifier: &str, constant: Constant) {
         if let Some(mut var) = self.symbols.get_mut(identifier) {
             match &var.data_type {
-                Some(dt) if dt.clone() != constant.data_type() =>
+                Some(dt) if dt.clone() != constant.data_type().unwrap() =>
                     panic!("Assigned to variable of different data type"),
                 Some(_) => var.content = Some(constant),
                 None => {
-                    var.data_type = Some(constant.data_type());
+                    var.data_type = constant.data_type();
                     var.content = Some(constant);
                 }
             }
         } else {
             let var = Variable {
                 id: identifier.to_string(),
-                data_type: Some(constant.data_type()),
+                data_type: constant.data_type(),
                 content: Some(constant),
             };
             self.symbols.insert(identifier.to_string(), var);
@@ -160,11 +159,17 @@ impl Variable {
         }
     }
 
-    pub fn get_identifier(&self) -> &str{
+    pub fn get_identifier(&self) -> &str {
         self.id.as_str()
     }
 
-    pub fn get_type(&self) -> Option<DataType>{
+    pub fn get_type(&self) -> Option<DataType> {
+        self.data_type.clone()
+    }
+}
+
+impl Evaluable for Variable {
+    fn data_type(&self) -> Option<DataType> {
         self.data_type.clone()
     }
 }
