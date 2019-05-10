@@ -52,12 +52,33 @@ function = {
     ~ "{"  ~ statement* ~ "}"
 }
 
+/* ########## FLOW CONTROL ########## */
+body = { statement+ }
+conditional_if = {
+    "if" ~ expression ~ "{"
+    ~ body ~ "}" ~
+    (conditional_elif)* ~
+    (conditional_else)?
+}
+
+conditional_elif = {
+    "elif" ~ expression ~ "{"
+        ~ body
+    ~"}"
+}
+
+conditional_else = {
+    "else" ~ "{"
+        ~ body
+    ~"}"
+}
+
 /* ########## OPERATIONS ########## */
 atribution = {identifier ~ "=" ~ (function|expression)}
 function_call = {identifier ~ arguments}
 object_call = {identifier ~ "." ~ identifier ~ arguments}
 
-statement = {atribution|function_call|object_call}
+statement = {atribution|conditional_if|function_call|object_call}
 program = _{ SOI ~ statement+ ~ EOI }
 
 /* BUILT IN DEFINITIONS */

@@ -51,13 +51,17 @@ impl Program {
         }
         output.push_str("\n// Functions\n");
         for function in &self.functions {
-            output.push_str(function.transpile(&self).as_str());
+            output.push_str(function.transpile().as_str());
             output.push('\n');
         }
         output.push_str("int main(){\n");
         for statement in &self.statements {
+            let transpilation = statement.transpile(&self.environment).replace("\n", "\n    ");
+            if transpilation == "" {
+                continue;
+            }
             output.push_str("    ");
-            output.push_str(statement.transpile(&self, &self.environment).as_str());
+            output.push_str(transpilation.as_str());
             output.push_str("\n");
         }
         output.push_str("    return 0;\n}");
@@ -71,6 +75,10 @@ impl Program {
 
     pub fn get_env(&self) -> &Environment {
         &self.environment
+    }
+
+    pub fn get_env_mut(&mut self) -> &mut Environment {
+        &mut self.environment
     }
 
     pub fn get_function(&self, identifier: usize) -> &Function {

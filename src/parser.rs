@@ -12,6 +12,7 @@ use crate::yggl::environment::Variable;
 use crate::yggl::function::*;
 use std::collections::linked_list::LinkedList;
 use std::fmt;
+use crate::yggl::flow::Conditional;
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -70,7 +71,8 @@ impl Program {
         for pair in pairs {
             match pair.as_rule() {
                 Rule::statement => {
-                    let statement = Statement::from(pair, &mut program)?;
+                    let statement =
+                        Statement::from(pair, &mut program)?;
                     program.add_statement(statement);
                 }
                 Rule::EOI => {}
@@ -92,7 +94,7 @@ impl Statement {
                 pair = inner_rules.next().unwrap();
                 match pair.as_rule() {
                     Rule::expression => {
-                        let expression = Expression::from(pair).unwrap();
+                        let expression = Expression::from(pair)?;
                         return Ok(Statement::Assignment(identifier, expression));
                     }
                     Rule::function => {
@@ -110,6 +112,10 @@ impl Statement {
                         Include::new("stdio.h".to_string(), true, None))
                 }
                 call
+            }
+            Rule::conditional_if => {
+                let conditional = Conditional::from(pair, program)?;
+                Ok(Statement::Conditional(conditional))
             }
             _ => unreachable!()
         }
@@ -132,7 +138,7 @@ lazy_static! {
 }
 
 impl Expression {
-    pub fn from(pair: Pair<Rule>) -> Result<Expression, ()> {
+    pub fn from(pair: Pair<Rule>) -> Result<Expression, CompilationError> {
         let pairs = pair.into_inner();
         BINOP_CLIMBER.climb(
             pairs,
@@ -146,10 +152,10 @@ impl Expression {
                     }
                     _ => unreachable!("\n{:?}\n", pair),
                 },
-            |lhs: Result<Expression, ()>, op: Pair<Rule>, rhs: Result<Expression, ()>|
+            |lhs: Result<Expression, CompilationError>, op: Pair<Rule>, rhs: Result<Expression, CompilationError>|
                 {
-                    let l = lhs.unwrap();
-                    let r = rhs.unwrap();
+                    let l = lhs?;
+                    let r = rhs?;
                     match op.as_rule() {
                         Rule::add => Ok(l + r),
                         Rule::sub => Ok(l - r),
@@ -166,8 +172,25 @@ impl Expression {
     }
 }
 
+impl Conditional {
+    pub fn from(pair: Pair<Rule>, program: &mut Program)
+                -> Result<Conditional, CompilationError> {
+        let mut pairs = pair.into_inner();
+        let condition_pair = pairs.next().unwrap();
+        let condition = Expression::from(condition_pair)?;
+        let body = pairs.next().unwrap();
+        let mut statements: Vec<Statement> = vec!();
+        for statement_pair in body.into_inner() {
+            let statement = Statement::from(statement_pair, program)?;
+            statements.push(statement);
+        }
+        Ok(Conditional::new(condition, statements))
+    }
+}
+
 impl Function {
-    pub fn from(pair: Pair<Rule>, program: &mut Program, name: String) -> Result<Function, CompilationError> {
+    pub fn from(pair: Pair<Rule>, program: &mut Program, name: String)
+                -> Result<Function, CompilationError> {
         let parameters: Option<Vec<Variable>> = Option::None;
         let mut statements: LinkedList<Statement> = LinkedList::new();
         for pair in pair.into_inner() {

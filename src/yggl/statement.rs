@@ -1,10 +1,10 @@
 use std::string::ToString;
+use std::fmt;
 use crate::yggl::data::{DataType, Evaluable};
 use crate::yggl::environment::Environment;
 use crate::yggl::expression::Expression;
-use std::fmt;
-use crate::yggl::language::Program;
 use crate::yggl::function::FunctionCall;
+use crate::yggl::flow::Conditional;
 
 /// Statements are standalone instructions.
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
@@ -13,6 +13,7 @@ pub enum Statement {
     Assignment(String, Expression),
     FunctionDef(usize),
     Call(FunctionCall, Vec<Expression>),
+    Conditional(Conditional),
     Print(Vec<Expression>),
     Return(Box<Evaluable>),
 }
@@ -34,7 +35,7 @@ impl Statement {
         }
     }
 
-    pub fn transpile(&self, _program: &Program, env: &Environment) -> String {
+    pub fn transpile(&self, env: &Environment) -> String {
         match self {
             &Statement::Assignment(ref identifier, ref exp) => {
                 format!("{} = {};", identifier, exp.transpile(env))
@@ -70,6 +71,7 @@ impl Statement {
 
                 format!("printf(\"{}\"{});", format_string, expressions_string)
             }
+            &Statement::Conditional(ref conditional) => conditional.transpile(env),
             _ => { "".to_string() }
         }
     }
@@ -84,6 +86,7 @@ impl<'a> fmt::Display for Statement {
             Statement::Call(_, _) => write!(f, "FunCall"),
             Statement::Print(_) => write!(f, "A print statement"),
             Statement::Return(_) => write!(f, "A return statement"),
+            Statement::Conditional(_) => write!(f, "An if clause"),
         }
     }
 }

@@ -49,7 +49,7 @@ impl Function {
         Ok(None)
     }
 
-    pub fn transpile(&self, program: &Program) -> String {
+    pub fn transpile(&self) -> String {
         let rtype = match &self.return_type {
             Some(dtype) => dtype.transpile(),
             _ => "void"
@@ -70,7 +70,7 @@ impl Function {
         for statement in &self.statements {
             result.push_str(format!(
                 "    {}\n",
-                statement.transpile(program, &self.environment)).as_str());
+                statement.transpile(&self.environment)).as_str());
         }
         result.push_str("}\n");
         result
