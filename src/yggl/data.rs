@@ -24,7 +24,7 @@ pub trait Evaluable {
 }
 
 /// Constants are either hardcoded literals or evaluated values
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 #[allow(dead_code)]
 pub enum Constant {
     Bool(bool),
@@ -60,6 +60,16 @@ impl Constant {
             Constant::Float(number.parse().unwrap())
         } else {
             Constant::Int(number.parse().unwrap())
+        }
+    }
+
+    pub fn truth_value(&self) -> bool {
+        match self {
+            &Constant::Bool(b) => b,
+            &Constant::Int(i) => i != 0,
+            &Constant::Float(f) => f != 0.0,
+            &Constant::String(_) => true,
+            &Constant::Char(c) => c != '\0'
         }
     }
 }

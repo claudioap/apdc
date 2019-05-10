@@ -16,22 +16,68 @@ impl Expression {
     pub fn eval(&self, environment: &Environment) -> Constant {
         match self {
             &Expression::Constant(ref c) => c.clone(),
-            &Expression::Variable(ref var) => {
-                environment.eval(var.as_str()).unwrap()
-            }
-            &Expression::UnaryOperation(ref exp, ref op) => {
+            &Expression::Variable(ref var) =>
+                environment.eval(var.as_str()).unwrap(),
+            &Expression::UnaryOperation(ref exp, ref op) =>
                 match op {
                     UnaryOperation::Inc => exp.eval(environment) + Constant::Int(1),
                     UnaryOperation::Dec => exp.eval(environment) - Constant::Int(1)
-                }
-            }
+                },
             &Expression::BinaryOperation(ref lexp, ref op, ref rexp) => {
                 match op {
                     BinaryOperation::Sum => lexp.eval(environment) + rexp.eval(environment),
                     BinaryOperation::Sub => lexp.eval(environment) - rexp.eval(environment),
                     BinaryOperation::Mul => lexp.eval(environment) * rexp.eval(environment),
                     BinaryOperation::Div => lexp.eval(environment) / rexp.eval(environment),
-                    BinaryOperation::Pow => lexp.eval(environment).pow(&rexp.eval(environment))
+                    BinaryOperation::Pow => lexp.eval(environment).pow(&rexp.eval(environment)),
+                    BinaryOperation::Eq | BinaryOperation::Neq | BinaryOperation::Gr |
+                    BinaryOperation::Geq | BinaryOperation::Le | BinaryOperation::Leq |
+                    BinaryOperation::And | BinaryOperation::Or =>
+                        Constant::Bool(self.bin_eval(environment)),
+                }
+            }
+        }
+    }
+
+    pub fn bin_eval(&self, environment: &Environment) -> bool {
+        match self {
+            &Expression::Constant(ref c) => c.truth_value(),
+            &Expression::Variable(ref var) =>
+                environment.eval(var.as_str()).unwrap().truth_value(),
+            &Expression::UnaryOperation(ref exp, ref op) => {
+                match op {
+                    UnaryOperation::Inc => (exp.eval(environment) + Constant::Int(1)).truth_value(),
+                    UnaryOperation::Dec => (exp.eval(environment) - Constant::Int(1)).truth_value()
+                }
+            }
+            &Expression::BinaryOperation(ref lexp, ref op, ref rexp) => {
+                match op {
+                    BinaryOperation::Sum =>
+                        (lexp.eval(environment) + rexp.eval(environment)).truth_value(),
+                    BinaryOperation::Sub =>
+                        (lexp.eval(environment) - rexp.eval(environment)).truth_value(),
+                    BinaryOperation::Mul =>
+                        (lexp.eval(environment) * rexp.eval(environment)).truth_value(),
+                    BinaryOperation::Div =>
+                        (lexp.eval(environment) / rexp.eval(environment)).truth_value(),
+                    BinaryOperation::Pow =>
+                        lexp.eval(environment).pow(&rexp.eval(environment)).truth_value(),
+                    BinaryOperation::Eq =>
+                        lexp.eval(environment) == rexp.eval(environment),
+                    BinaryOperation::Neq =>
+                        lexp.eval(environment) != rexp.eval(environment),
+                    BinaryOperation::Gr =>
+                        lexp.eval(environment) > rexp.eval(environment),
+                    BinaryOperation::Geq =>
+                        lexp.eval(environment) >= rexp.eval(environment),
+                    BinaryOperation::Le =>
+                        lexp.eval(environment) < rexp.eval(environment),
+                    BinaryOperation::Leq =>
+                        lexp.eval(environment) <= rexp.eval(environment),
+                    BinaryOperation::And =>
+                        lexp.eval(environment).truth_value() && rexp.eval(environment).truth_value(),
+                    BinaryOperation::Or =>
+                        lexp.eval(environment).truth_value() || rexp.eval(environment).truth_value(),
                 }
             }
         }
@@ -174,7 +220,7 @@ impl fmt::Display for UnaryOperation {
 
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
-pub enum BinaryOperation { Sum, Sub, Mul, Div, Pow }
+pub enum BinaryOperation { Sum, Sub, Mul, Div, Pow, Eq, Neq, Gr, Geq, Le, Leq, And, Or }
 
 impl fmt::Display for BinaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -184,6 +230,14 @@ impl fmt::Display for BinaryOperation {
             &BinaryOperation::Mul => "*",
             &BinaryOperation::Div => "/",
             &BinaryOperation::Pow => "^",
+            &BinaryOperation::Eq => "==",
+            &BinaryOperation::Neq => "!=",
+            &BinaryOperation::Gr => ">",
+            &BinaryOperation::Geq => ">=",
+            &BinaryOperation::Le => "<",
+            &BinaryOperation::Leq => "<=",
+            &BinaryOperation::And => "&&",
+            &BinaryOperation::Or => "||",
         })
     }
 }

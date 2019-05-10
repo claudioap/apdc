@@ -29,13 +29,24 @@ value = _{string | number | boolean | dict | identifier }
 evaluable = _{ "("~ evaluable ~")" | function_call | object | object_call | value | identifier}
 
 
-binop = _{add|sub|mul|div|pow}
-    add =  {"+"}
-    sub =  {"-"}
-    mul =  {"*"}
-    div =  {"/"}
-    pow =  {"^"}
+binop = _{add|sub|mul|div|rem|pow|eq|le|leq|gr|geq|and|or}
+add =  {"+"}
+sub =  {"-"}
+mul =  {"*"}
+div =  {"/"}
+rem =  {"%"}
+pow =  {"^"}
 neg = {"!"}
+eq =  {"=="}
+neq =  {"!="}
+le =  {"<"}
+leq =  {"<="}
+gr =  {">"}
+geq =  {">="}
+and =  {"&&"}
+or =  {"||"}
+
+
 expression = {term ~ (binop ~ term)*}
 term = _{ evaluable | "(" ~ expression ~ ")" }
 

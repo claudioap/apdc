@@ -130,8 +130,13 @@ lazy_static! {
         use Assoc::*;
 
         PrecClimber::new(vec![
+            Operator::new(or, Left),
+            Operator::new(and, Left),
+            Operator::new(eq, Left) | Operator::new(neq, Left),
+            Operator::new(le, Left) | Operator::new(gr, Left) |
+                Operator::new(leq, Left) | Operator::new(geq, Left),
             Operator::new(add, Left) | Operator::new(sub, Left),
-            Operator::new(mul, Left) | Operator::new(div, Left),
+            Operator::new(mul, Left) | Operator::new(div, Left)| Operator::new(rem, Left),
             Operator::new(pow, Right)
         ])
     };
@@ -164,6 +169,38 @@ impl Expression {
                         Rule::pow => Ok(Expression::BinaryOperation(
                             Box::new(l),
                             BinaryOperation::Pow,
+                            Box::new(r))),
+                        Rule::eq => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::Eq,
+                            Box::new(r))),
+                        Rule::neq => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::Neq,
+                            Box::new(r))),
+                        Rule::gr => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::Gr,
+                            Box::new(r))),
+                        Rule::geq => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::Geq,
+                            Box::new(r))),
+                        Rule::le => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::Le,
+                            Box::new(r))),
+                        Rule::leq => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::Leq,
+                            Box::new(r))),
+                        Rule::and => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::And,
+                            Box::new(r))),
+                        Rule::or => Ok(Expression::BinaryOperation(
+                            Box::new(l),
+                            BinaryOperation::Or,
                             Box::new(r))),
                         _ => unreachable!(),
                     }
