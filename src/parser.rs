@@ -176,15 +176,49 @@ impl Conditional {
     pub fn from(pair: Pair<Rule>, program: &mut Program)
                 -> Result<Conditional, CompilationError> {
         let mut pairs = pair.into_inner();
-        let condition_pair = pairs.next().unwrap();
-        let condition = Expression::from(condition_pair)?;
-        let body = pairs.next().unwrap();
+        let mut condition_pair = pairs.next().unwrap();
+        let mut condition = Expression::from(condition_pair)?;
+        let mut body = pairs.next().unwrap();
         let mut statements: Vec<Statement> = vec!();
         for statement_pair in body.into_inner() {
             let statement = Statement::from(statement_pair, program)?;
             statements.push(statement);
         }
-        Ok(Conditional::new(condition, statements))
+        let mut conditional = Conditional::new(Some(condition), statements);
+        loop {
+            let next = pairs.next();
+            if let Some(pair) = next {
+                match pair.as_rule() {
+                    Rule::conditional_elif => {
+                        pairs = pair.into_inner();
+                        condition_pair = pairs.next().unwrap();
+                        condition = Expression::from(condition_pair)?;
+                        body = pairs.next().unwrap();
+                        let mut statements: Vec<Statement> = vec!();
+                        for statement_pair in body.into_inner() {
+                            let statement = Statement::from(statement_pair, program)?;
+                            statements.push(statement);
+                        }
+                        conditional.add_sibling(Some(condition), statements);
+                    }
+                    Rule::conditional_else => {
+                        pairs = pair.into_inner();
+                        body = pairs.next().unwrap();
+                        let mut statements: Vec<Statement> = vec!();
+                        for statement_pair in body.into_inner() {
+                            let statement = Statement::from(statement_pair, program)?;
+                            statements.push(statement);
+                        }
+                        conditional.add_sibling(None, statements);
+                    }
+                    _ => unreachable!()
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(conditional)
     }
 }
 
