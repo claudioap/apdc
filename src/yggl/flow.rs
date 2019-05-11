@@ -13,7 +13,7 @@ pub struct Conditional {
 impl Conditional {
     pub fn new(condition: Option<Expression>, statements: Vec<Statement>) -> Conditional {
         Conditional {
-            condition: condition,
+            condition,
             statements,
             sibling: None,
         }
@@ -44,5 +44,66 @@ impl Conditional {
             output.push_str("}");
         }
         return output;
+    }
+}
+
+#[allow(dead_code)]
+pub enum Cycle {
+    Loop(Vec<Box<Statement>>),
+    While(Expression, Vec<Box<Statement>>),
+    DoWhile(Expression, Vec<Box<Statement>>),
+    For(Box<Statement>, Expression, Option<Box<Statement>>, Vec<Box<Statement>>),
+}
+
+#[allow(dead_code)]
+impl Cycle {
+    pub fn transpile(&self, env: &Environment) -> String {
+        let mut output = String::new();
+        match self {
+            Cycle::Loop(statements) => {
+                output.push_str("while (1 == 1) {\n");
+                for statement in statements {
+                    output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
+                }
+                output.push('}');
+            }
+            Cycle::While(condition, statements) => {
+                output.push_str(format!("while {} {{\n", condition.transpile(env)).as_str());
+                for statement in statements {
+                    output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
+                }
+                output.push('}');
+            }
+            Cycle::DoWhile(condition, statements) => {
+                output.push('{');
+                for statement in statements {
+                    output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
+                }
+                output.push_str(format!("}} while {};", condition.transpile(env)).as_str());
+            }
+            Cycle::For(initialization, condition, posrun, statements) => {
+                if let Some(posrun_statement) = posrun {
+                    output.push_str(
+                        format!(
+                            "for({};{};{}){{\n",
+                            initialization.transpile(env),
+                            condition.transpile(env),
+                            posrun_statement.transpile(env)
+                        ).as_str());
+                } else {
+                    output.push_str(
+                        format!(
+                            "for({};{};){{\n",
+                            initialization.transpile(env),
+                            condition.transpile(env)
+                        ).as_str());
+                }
+                for statement in statements {
+                    output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
+                }
+                output.push('}');
+            }
+        }
+        output
     }
 }

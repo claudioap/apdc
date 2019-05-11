@@ -12,7 +12,7 @@ use crate::yggl::environment::Variable;
 use crate::yggl::function::*;
 use std::collections::linked_list::LinkedList;
 use std::fmt;
-use crate::yggl::flow::Conditional;
+use crate::yggl::flow::{Conditional, Cycle};
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -117,8 +117,43 @@ impl Statement {
                 let conditional = Conditional::from(pair, program)?;
                 Ok(Statement::Conditional(conditional))
             }
-            _ => unreachable!()
+            Rule::cycle_loop => {
+                let cycle = Cycle::loop_from(pair, program)?;
+                Ok(Statement::Cycle(cycle))
+            }
+            Rule::cycle_while => {
+                let cycle = Cycle::while_from(pair, program)?;
+                Ok(Statement::Cycle(cycle))
+            }
+            _ => unreachable!("{}", pair)
         }
+    }
+}
+
+impl Cycle {
+    pub fn loop_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+        let statements =
+            Cycle::read_statements(pair.into_inner().next().unwrap(), program)?;
+        Ok(Cycle::Loop(statements))
+    }
+
+    pub fn while_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+        let mut inner_rules = pair.into_inner();
+        let pair = inner_rules.next().unwrap();
+        let condition = Expression::from(pair)?;
+        let statements =
+            Cycle::read_statements(inner_rules.next().unwrap(), program)?;
+        Ok(Cycle::While(condition, statements))
+    }
+
+    fn read_statements(body: Pair<Rule>, program: &mut Program)
+                       -> Result<Vec<Box<Statement>>, CompilationError> {
+        let mut statements = vec!();
+        for pair in body.into_inner() {
+            let statement = Statement::from(pair, program)?;
+            statements.push(Box::new(statement));
+        }
+        Ok(statements)
     }
 }
 

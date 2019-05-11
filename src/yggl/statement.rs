@@ -4,7 +4,7 @@ use crate::yggl::data::{DataType, Evaluable};
 use crate::yggl::environment::Environment;
 use crate::yggl::expression::Expression;
 use crate::yggl::function::FunctionCall;
-use crate::yggl::flow::Conditional;
+use crate::yggl::flow::{Conditional, Cycle};
 
 /// Statements are standalone instructions.
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
@@ -14,6 +14,7 @@ pub enum Statement {
     FunctionDef(usize),
     Call(FunctionCall, Vec<Expression>),
     Conditional(Conditional),
+    Cycle(Cycle),
     Print(Vec<Expression>),
     Return(Box<Evaluable>),
 }
@@ -72,6 +73,7 @@ impl Statement {
                 format!("printf(\"{}\"{});", format_string, expressions_string)
             }
             &Statement::Conditional(ref conditional) => conditional.transpile(env),
+            &Statement::Cycle(ref cycle) => cycle.transpile(env),
             _ => { "".to_string() }
         }
     }
@@ -87,6 +89,7 @@ impl<'a> fmt::Display for Statement {
             Statement::Print(_) => write!(f, "A print statement"),
             Statement::Return(_) => write!(f, "A return statement"),
             Statement::Conditional(_) => write!(f, "An if clause"),
+            Statement::Cycle(_) => write!(f, "A cycle"),
         }
     }
 }

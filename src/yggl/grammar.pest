@@ -84,12 +84,34 @@ conditional_else = {
     ~"}"
 }
 
+cycle = _{cycle_loop|cycle_while|cycle_do_while|cycle_for}
+cycle_loop = {
+    "loop" ~ "{"
+        ~ body
+    ~"}"
+}
+cycle_while = {
+     "while" ~ expression ~ "{"
+         ~ body
+     ~"}"
+}
+cycle_do_while = {
+    "do"~ "{"
+        ~ body
+    ~"}" ~ "while" ~ expression
+}
+cycle_for = {
+    "for"  ~ atribution ~ ";" ~ expression ~ ";" ~ statement ~ "{"
+        ~ body
+    ~"}"
+}
+
 /* ########## OPERATIONS ########## */
 atribution = {identifier ~ "=" ~ (function|expression)}
 function_call = {identifier ~ arguments}
 object_call = {identifier ~ "." ~ identifier ~ arguments}
 
-statement = {atribution|conditional_if|function_call|object_call}
+statement = {atribution|conditional_if|cycle|function_call|object_call}
 program = _{ SOI ~ statement+ ~ EOI }
 
 /* BUILT IN DEFINITIONS */
