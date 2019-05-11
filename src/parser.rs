@@ -302,11 +302,9 @@ impl Function {
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::parameters => {
-                    println!("Found a parameter list");
                     Function::read_parameters(pair);
                 }
                 Rule::statement => {
-                    println!("Found a statement {:?}", pair);
                     let statement = Statement::from(pair, program)?;
                     statements.push_back(statement);
                 }
@@ -328,14 +326,12 @@ impl Function {
         }
     }
 
-    fn read_parameters(pair: Pair<Rule>) -> Vec<Variable> {
-        println!("{:?}", pair);
+    fn read_parameters(_pair: Pair<Rule>) -> Vec<Variable> {
         vec![]
     }
 
 
-    fn read_arguments(pair: Pair<Rule>) -> Vec<Expression> {
-        println!("{:?}", pair);
+    fn read_arguments(_pair: Pair<Rule>) -> Vec<Expression> {
         vec![]
     }
 
