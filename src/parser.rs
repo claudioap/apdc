@@ -8,7 +8,7 @@ use crate::yggl::data::Constant;
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
 use crate::yggl::language::{Program, Include};
-use crate::yggl::environment::Variable;
+use crate::yggl::environment::{Variable, Environment};
 use crate::yggl::function::*;
 use std::collections::linked_list::LinkedList;
 use std::fmt;
@@ -162,7 +162,7 @@ impl Cycle {
         Ok(Cycle::DoWhile(condition, statements))
     }
 
-    pub fn for_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+    pub fn for_from(_pair: Pair<Rule>, _program: &mut Program) -> Result<Cycle, CompilationError> {
         unimplemented!("For loops unimplemented yet");
     }
 
@@ -346,19 +346,29 @@ impl Function {
         }
     }
 
-    fn read_parameters(_pair: Pair<Rule>) -> Vec<Variable> {
-        vec![]
+    fn read_parameters(pair: Pair<Rule>) -> Vec<Variable> {
+        let mut parameters = vec!();
+        for parameter_pair in pair.into_inner(){
+            let parameter = Variable::new(parameter_pair.as_str());
+            parameters.push(parameter);
+        }
+        parameters
     }
 
 
-    fn read_arguments(_pair: Pair<Rule>) -> Vec<Expression> {
-        vec![]
+    fn read_arguments(pair: Pair<Rule>) -> Result<Vec<Expression>, CompilationError> {
+        let mut arguments = vec!();
+        for argument_pair in pair.into_inner(){
+            let argument = Expression::from(argument_pair)?;
+            arguments.push(argument);
+        }
+        Ok(arguments)
     }
 
     fn parse_call(pair: Pair<Rule>) -> Result<Statement, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let identifier = inner_rules.next().unwrap().as_str();
-        let arguments = Function::read_arguments(inner_rules.next().unwrap());
+        let arguments = Function::read_arguments(inner_rules.next().unwrap())?;
         let statement = if identifier == "print" {
             Statement::Print(arguments)
         } else {
