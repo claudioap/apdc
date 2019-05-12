@@ -125,6 +125,13 @@ impl Statement {
                 let cycle = Cycle::while_from(pair, program)?;
                 Ok(Statement::Cycle(cycle))
             }
+            Rule::cycle_do_while => {
+                let cycle = Cycle::do_while_from(pair, program)?;
+                Ok(Statement::Cycle(cycle))
+            }Rule::cycle_for => {
+                let cycle = Cycle::for_from(pair, program)?;
+                Ok(Statement::Cycle(cycle))
+            }
             _ => unreachable!("{}", pair)
         }
     }
@@ -144,6 +151,19 @@ impl Cycle {
         let statements =
             Cycle::read_statements(inner_rules.next().unwrap(), program)?;
         Ok(Cycle::While(condition, statements))
+    }
+
+    pub fn do_while_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+        let mut inner_rules = pair.into_inner();
+        let statements =
+            Cycle::read_statements(inner_rules.next().unwrap(), program)?;
+        let pair = inner_rules.next().unwrap();
+        let condition = Expression::from(pair)?;
+        Ok(Cycle::DoWhile(condition, statements))
+    }
+
+    pub fn for_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+        unimplemented!("For loops unimplemented yet");
     }
 
     fn read_statements(body: Pair<Rule>, program: &mut Program)

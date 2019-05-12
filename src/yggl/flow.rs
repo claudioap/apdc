@@ -75,7 +75,7 @@ impl Cycle {
                 output.push('}');
             }
             Cycle::DoWhile(condition, statements) => {
-                output.push('{');
+                output.push_str("do {\n");
                 for statement in statements {
                     output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
                 }
