@@ -1,17 +1,18 @@
+use std::collections::linked_list::LinkedList;
+use std::fmt;
+use std::rc::Rc;
 use pest::Parser;
 use pest::iterators::Pair;
 use pest::iterators::Pairs;
 use pest::error::Error;
 use pest::error::LineColLocation::*;
 use pest::prec_climber::*;
-use crate::yggl::data::Constant;
+use crate::yggl::data::{Constant, DataType};
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
-use crate::yggl::language::{Program, Include};
-use crate::yggl::environment::{Variable, Environment};
+use crate::yggl::program::{Program, Include};
+use crate::yggl::environment::{Variable, Environment, Symbol};
 use crate::yggl::function::*;
-use std::collections::linked_list::LinkedList;
-use std::fmt;
 use crate::yggl::flow::{Conditional, Cycle};
 
 #[derive(Parser)]
@@ -72,7 +73,7 @@ impl Program {
             match pair.as_rule() {
                 Rule::statement => {
                     let statement =
-                        Statement::from(pair, &mut program)?;
+                        Statement::from(pair, program.get_env_mut())?;
                     program.add_statement(statement);
                 }
                 Rule::EOI => {}
@@ -84,52 +85,55 @@ impl Program {
 }
 
 impl Statement {
-    pub fn from(pair: Pair<Rule>, program: &mut Program) -> Result<Statement, CompilationError> {
+    pub fn from(pair: Pair<Rule>, env: &mut Environment) -> Result<Statement, CompilationError> {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
-            Rule::atribution => {
+            Rule::assignment => {
                 let mut inner_rules = pair.into_inner();
                 let mut pair = inner_rules.next().unwrap();
                 let identifier = pair.as_str().to_string();
                 pair = inner_rules.next().unwrap();
                 match pair.as_rule() {
                     Rule::expression => {
-                        let expression = Expression::from(pair)?;
+                        let expression = Expression::from(pair, env)?;
+                        env.declare(identifier.as_str(), expression.data_type().unwrap());
                         return Ok(Statement::Assignment(identifier, expression));
                     }
                     Rule::function => {
-                        let function = Function::from(pair, program, identifier)?;
-                        let function_index = program.add_function(function);
-                        return Ok(Statement::FunctionDef(function_index));
+                        let function = Function::from(pair, identifier)?;
+                        env.declare(function.get_name(), DataType::Function);
+                        let function_rc = env.add_function(function);
+                        return Ok(Statement::FunctionDef(function_rc));
                     }
                     _ => unreachable!()
                 }
             }
             Rule::function_call => {
-                let call = Function::parse_call(pair);
+                let call = Function::parse_call(pair, env);
                 if let Ok(Statement::Print(_)) = call {
-                    program.require_include(
+                    env.require_include(
                         Include::new("stdio.h".to_string(), true, None))
                 }
                 call
             }
             Rule::conditional_if => {
-                let conditional = Conditional::from(pair, program)?;
+                let conditional = Conditional::from(pair, env)?;
                 Ok(Statement::Conditional(conditional))
             }
             Rule::cycle_loop => {
-                let cycle = Cycle::loop_from(pair, program)?;
+                let cycle = Cycle::loop_from(pair, env)?;
                 Ok(Statement::Cycle(cycle))
             }
             Rule::cycle_while => {
-                let cycle = Cycle::while_from(pair, program)?;
+                let cycle = Cycle::while_from(pair, env)?;
                 Ok(Statement::Cycle(cycle))
             }
             Rule::cycle_do_while => {
-                let cycle = Cycle::do_while_from(pair, program)?;
+                let cycle = Cycle::do_while_from(pair, env)?;
                 Ok(Statement::Cycle(cycle))
-            }Rule::cycle_for => {
-                let cycle = Cycle::for_from(pair, program)?;
+            }
+            Rule::cycle_for => {
+                let cycle = Cycle::for_from(pair, env)?;
                 Ok(Statement::Cycle(cycle))
             }
             _ => unreachable!("{}", pair)
@@ -138,39 +142,39 @@ impl Statement {
 }
 
 impl Cycle {
-    pub fn loop_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+    pub fn loop_from(pair: Pair<Rule>, env: &mut Environment) -> Result<Cycle, CompilationError> {
         let statements =
-            Cycle::read_statements(pair.into_inner().next().unwrap(), program)?;
+            Cycle::read_statements(pair.into_inner().next().unwrap(), env)?;
         Ok(Cycle::Loop(statements))
     }
 
-    pub fn while_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+    pub fn while_from(pair: Pair<Rule>, env: &mut Environment) -> Result<Cycle, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let pair = inner_rules.next().unwrap();
-        let condition = Expression::from(pair)?;
+        let condition = Expression::from(pair, env)?;
         let statements =
-            Cycle::read_statements(inner_rules.next().unwrap(), program)?;
+            Cycle::read_statements(inner_rules.next().unwrap(), env)?;
         Ok(Cycle::While(condition, statements))
     }
 
-    pub fn do_while_from(pair: Pair<Rule>, program: &mut Program) -> Result<Cycle, CompilationError> {
+    pub fn do_while_from(pair: Pair<Rule>, env: &mut Environment) -> Result<Cycle, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let statements =
-            Cycle::read_statements(inner_rules.next().unwrap(), program)?;
+            Cycle::read_statements(inner_rules.next().unwrap(), env)?;
         let pair = inner_rules.next().unwrap();
-        let condition = Expression::from(pair)?;
+        let condition = Expression::from(pair, env)?;
         Ok(Cycle::DoWhile(condition, statements))
     }
 
-    pub fn for_from(_pair: Pair<Rule>, _program: &mut Program) -> Result<Cycle, CompilationError> {
+    pub fn for_from(_pair: Pair<Rule>, _env: &mut Environment) -> Result<Cycle, CompilationError> {
         unimplemented!("For loops unimplemented yet");
     }
 
-    fn read_statements(body: Pair<Rule>, program: &mut Program)
+    fn read_statements(body: Pair<Rule>, env: &mut Environment)
                        -> Result<Vec<Box<Statement>>, CompilationError> {
         let mut statements = vec!();
         for pair in body.into_inner() {
-            let statement = Statement::from(pair, program)?;
+            let statement = Statement::from(pair, env)?;
             statements.push(Box::new(statement));
         }
         Ok(statements)
@@ -198,17 +202,23 @@ lazy_static! {
 }
 
 impl Expression {
-    pub fn from(pair: Pair<Rule>) -> Result<Expression, CompilationError> {
+    pub fn from(pair: Pair<Rule>, env: &Environment) -> Result<Expression, CompilationError> {
         let pairs = pair.into_inner();
         BINOP_CLIMBER.climb(
             pairs,
             |pair: Pair<Rule>|
                 match pair.as_rule() {
-                    Rule::expression => Expression::from(pair),
+                    Rule::expression => Expression::from(pair, env),
                     Rule::number => //TODO Trait std::str::FromStr
                         Ok(Expression::Constant(Constant::parse_number(pair.as_str()))),
                     Rule::identifier => {
-                        Ok(Expression::Variable(pair.as_str().to_string()))
+                        match env.get(pair.as_str()) {
+                            Some(Symbol::Constant(c)) => Ok(Expression::Constant(c.clone())),
+                            Some(Symbol::Variable(var)) => Ok(Expression::Variable(var.clone())),
+                            _ => Err(CompilationError::new(
+                                0, 0, "".to_string(),
+                                format!("Failed to resolve symbol {}", pair.as_str())))
+                        }
                     }
                     _ => unreachable!("\n{:?}\n", pair),
                 },
@@ -265,15 +275,15 @@ impl Expression {
 }
 
 impl Conditional {
-    pub fn from(pair: Pair<Rule>, program: &mut Program)
+    pub fn from(pair: Pair<Rule>, env: &mut Environment)
                 -> Result<Conditional, CompilationError> {
         let mut pairs = pair.into_inner();
         let mut condition_pair = pairs.next().unwrap();
-        let mut condition = Expression::from(condition_pair)?;
+        let mut condition = Expression::from(condition_pair, env)?;
         let mut body = pairs.next().unwrap();
         let mut statements: Vec<Statement> = vec!();
         for statement_pair in body.into_inner() {
-            let statement = Statement::from(statement_pair, program)?;
+            let statement = Statement::from(statement_pair, env)?;
             statements.push(statement);
         }
         let mut conditional = Conditional::new(Some(condition), statements);
@@ -284,11 +294,11 @@ impl Conditional {
                     Rule::conditional_elif => {
                         pairs = pair.into_inner();
                         condition_pair = pairs.next().unwrap();
-                        condition = Expression::from(condition_pair)?;
+                        condition = Expression::from(condition_pair, env)?;
                         body = pairs.next().unwrap();
                         let mut statements: Vec<Statement> = vec!();
                         for statement_pair in body.into_inner() {
-                            let statement = Statement::from(statement_pair, program)?;
+                            let statement = Statement::from(statement_pair, env)?;
                             statements.push(statement);
                         }
                         conditional.add_sibling(Some(condition), statements);
@@ -298,7 +308,7 @@ impl Conditional {
                         body = pairs.next().unwrap();
                         let mut statements: Vec<Statement> = vec!();
                         for statement_pair in body.into_inner() {
-                            let statement = Statement::from(statement_pair, program)?;
+                            let statement = Statement::from(statement_pair, env)?;
                             statements.push(statement);
                         }
                         conditional.add_sibling(None, statements);
@@ -315,17 +325,18 @@ impl Conditional {
 }
 
 impl Function {
-    pub fn from(pair: Pair<Rule>, program: &mut Program, name: String)
+    pub fn from(pair: Pair<Rule>, name: String)
                 -> Result<Function, CompilationError> {
         let parameters: Option<Vec<Variable>> = Option::None;
         let mut statements: LinkedList<Statement> = LinkedList::new();
+        let mut function_env = Environment::new();
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::parameters => {
                     Function::read_parameters(pair);
                 }
                 Rule::statement => {
-                    let statement = Statement::from(pair, program)?;
+                    let statement = Statement::from(pair, &mut function_env)?;
                     statements.push_back(statement);
                 }
                 _ => unreachable!()
@@ -340,15 +351,15 @@ impl Function {
                     "Function definition without statements".to_string()));
         }
         if let Some(parameters_vec) = parameters {
-            Function::new(name, parameters_vec, statements)
+            Function::new(function_env, name, parameters_vec, statements)
         } else {
-            Function::new(name, vec!(), statements)
+            Function::new(function_env, name, vec!(), statements)
         }
     }
 
     fn read_parameters(pair: Pair<Rule>) -> Vec<Variable> {
         let mut parameters = vec!();
-        for parameter_pair in pair.into_inner(){
+        for parameter_pair in pair.into_inner() {
             let parameter = Variable::new(parameter_pair.as_str());
             parameters.push(parameter);
         }
@@ -356,24 +367,35 @@ impl Function {
     }
 
 
-    fn read_arguments(pair: Pair<Rule>) -> Result<Vec<Expression>, CompilationError> {
+    fn read_arguments(pair: Pair<Rule>, env: &Environment) -> Result<Vec<Expression>, CompilationError> {
         let mut arguments = vec!();
-        for argument_pair in pair.into_inner(){
-            let argument = Expression::from(argument_pair)?;
+        for argument_pair in pair.into_inner() {
+            let argument = Expression::from(argument_pair, env)?;
             arguments.push(argument);
         }
         Ok(arguments)
     }
 
-    fn parse_call(pair: Pair<Rule>) -> Result<Statement, CompilationError> {
+    fn parse_call(pair: Pair<Rule>, env: &Environment) -> Result<Statement, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let identifier = inner_rules.next().unwrap().as_str();
-        let arguments = Function::read_arguments(inner_rules.next().unwrap())?;
-        let statement = if identifier == "print" {
-            Statement::Print(arguments)
+        let arguments = Function::read_arguments(inner_rules.next().unwrap(), env)?;
+        if identifier == "print" {
+            Ok(Statement::Print(arguments))
         } else {
-            Statement::Call(FunctionCall::new(0, None, vec!()), arguments)
-        };
-        Ok(statement)
+            if let Some(symbol) = env.get(identifier) {
+                if let Symbol::Function(function) = symbol {
+                    Ok(Statement::Call(FunctionCall::new(Rc::clone(&function), arguments)))
+                } else {
+                    Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("Identifier {} isn't a function", { identifier })))
+                }
+            } else {
+                Err(CompilationError::new(
+                    0, 0, "".to_string(),
+                    format!("Identifier {} isn't defined.", { identifier })))
+            }
+        }
     }
 }

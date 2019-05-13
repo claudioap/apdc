@@ -1,3 +1,7 @@
+/* BUILT IN DEFINITIONS */
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
 /* ########## DATA TYPES ########## */
 number = @{
     "-"?
@@ -15,7 +19,7 @@ boolean = { "true" | "false" }
 inner = @{ char* }
 string = ${ "\"" ~ inner ~ "\"" }
 
-pair = { identifier ~ ":" ~ value }
+pair = { identifier ~ ":" ~ evaluable }
 dict = {
   "{"
   	~ pair // At least one pair required
@@ -52,9 +56,6 @@ term = _{ evaluable | "(" ~ expression ~ ")" }
 
 
 /* ########## COMPOSITE TYPES ########## */
-object_type = {("Protocol"|"Response"|"Request"|"Timer")}
-object =  {object_type ~ dict}
-
 parameter = { string | identifier }
 parameters = {"(" ~  identifier ~ ("," ~ identifier)*~ ")"}
 arguments = {"(" ~ (expression ~ ("," ~ expression)*)?~ ")"}
@@ -96,24 +97,28 @@ cycle_while = {
      ~"}"
 }
 cycle_do_while = {
-    "do"~ "{"
+    "do" ~ "{"
         ~ body
     ~"}" ~ "while" ~ expression
 }
 cycle_for = {
-    "for"  ~ atribution ~ ";" ~ expression ~ ";" ~ statement ~ "{"
+    "for" ~ assignment ~ ";" ~ expression ~ ";" ~ statement ~ "{"
         ~ body
     ~"}"
 }
 
 /* ########## OPERATIONS ########## */
-atribution = {identifier ~ "=" ~ (function|expression)}
+assignment = {identifier ~ "=" ~ (function|protocol|expression)}
 function_call = {identifier ~ arguments}
 object_call = {identifier ~ "." ~ identifier ~ arguments}
 
-statement = {atribution|conditional_if|cycle|function_call|object_call}
+statement = {assignment|conditional_if|cycle|function_call|object_call}
 program = _{ SOI ~ statement+ ~ EOI }
 
-/* BUILT IN DEFINITIONS */
-WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+/* ########## YGGDRASIL ########## */
+protocol = {
+    "Proto" ~ dict
+}
+object_type = {("Protocol"|"Response"|"Request"|"Timer")}
+object =  {object_type ~ dict}

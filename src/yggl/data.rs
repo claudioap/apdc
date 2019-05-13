@@ -1,5 +1,4 @@
 use std::{fmt, ops};
-use crate::yggl::language::Program;
 
 #[allow(dead_code)]
 #[derive(Clone, PartialEq, Debug)]
@@ -20,7 +19,7 @@ impl DataType {
 
 pub trait Evaluable {
     fn data_type(&self) -> Option<DataType>;
-    fn eval(&self, program: &mut Program) -> Option<Constant>;
+    fn eval(&self) -> Option<Constant>;
 }
 
 /// Constants are either hardcoded literals or evaluated values
@@ -72,21 +71,15 @@ impl Constant {
             &Constant::Char(c) => c != '\0'
         }
     }
-}
 
-impl Evaluable for Constant {
-    fn data_type(&self) -> Option<DataType> {
-        Some(match self {
+    pub fn data_type(&self) -> DataType {
+        match self {
             Constant::Int(_) => DataType::Int,
             Constant::Float(_) => DataType::Float,
             Constant::String(_) => DataType::String,
             Constant::Char(_) => DataType::Char,
             Constant::Bool(_) => DataType::Bool
-        })
-    }
-
-    fn eval(&self, _program: &mut Program) -> Option<Constant> {
-        Some(self.clone())
+        }
     }
 }
 
@@ -103,7 +96,6 @@ impl fmt::Display for Constant {
 }
 
 // Arithmetic operations within constants
-
 impl ops::Add<Constant> for Constant {
     type Output = Constant;
 

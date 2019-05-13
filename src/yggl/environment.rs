@@ -1,12 +1,17 @@
-use std::collections::{HashMap, LinkedList};
-use crate::yggl::data::{Constant, DataType, Evaluable};
+use std::collections::{HashMap, LinkedList, HashSet};
 use std::fmt;
-use crate::yggl::statement::Statement;
-use crate::yggl::language::Program;
+use std::rc::Rc;
+use std::cell::RefCell;
+use crate::yggl::data::{Constant, DataType, Evaluable};
+use crate::yggl::function::Function;
+use crate::yggl::program::Include;
 
 /// A program has a set of environments, which hold variable data.
 pub struct Environment {
+    // Environment symbols are static
+    symbols: HashMap<String, Symbol>,
     scopes: LinkedList<Scope>,
+    includes: HashSet<Include>,
 }
 
 #[allow(dead_code)]
@@ -15,7 +20,7 @@ impl Environment {
         let mut scopes = LinkedList::new();
         let scope = Scope::new();
         scopes.push_back(scope);
-        Environment { scopes }
+        Environment { scopes, symbols: HashMap::new(), includes: HashSet::new() }
     }
 
     pub fn push_scope(&mut self) {
@@ -43,7 +48,6 @@ impl Environment {
         None
     }
 
-
     fn get_definition_scope(&self, identifier: &str) -> Option<&Scope> {
         for scope in &self.scopes {
             if scope.is_defined(identifier) {
@@ -53,6 +57,10 @@ impl Environment {
         None
     }
 
+    pub fn declare(&mut self, identifier: &str, dtype: DataType) {
+        self.get_current_scope().declare(identifier, dtype);
+    }
+
     pub fn define(&mut self, identifier: &str, constant: Constant) {
         match self.get_definition_scope_mut(identifier) {
             Some(scope) => scope.define(identifier, constant),
@@ -60,59 +68,92 @@ impl Environment {
         }
     }
 
-    pub fn eval(&self, identifier: &str) -> Option<Constant> {
+    pub fn get_functions(&self) -> Vec<&Rc<Function>> {
+        let mut set = vec!();
+        for (_, symbol) in &self.symbols {
+            if let Symbol::Function(function) = symbol {
+                set.push(function);
+            }
+        }
+        set
+    }
+
+    pub fn get(&self, identifier: &str) -> Option<&Symbol> {
+        match self.get_definition_scope(identifier) {
+            Some(scope) => scope.get(identifier),
+            None => match self.symbols.get(identifier) {
+                Some(symbol) => Some(symbol),
+                None => None
+            }
+        }
+    }
+
+    pub fn eval(&self, identifier: &str) -> Option<Symbol> {
         match self.get_definition_scope(identifier) {
             Some(scope) => scope.eval(identifier),
             None => None
         }
+    }
+
+    pub fn add_function(&mut self, function: Function) -> Rc<Function> {
+        let name = function.get_name().to_string();
+        let function_rc = Rc::new(function);
+        self.symbols.insert(name, Symbol::Function(Rc::clone(&function_rc)));
+        function_rc
+    }
+
+    pub fn require_include(&mut self, include: Include) {
+        self.includes.insert(include);
     }
 }
 
 
 /// A scope is a slice of the current environment.
 /// Scopes can be stacked on top of each other, and variable resolution is done as a LIFO.
-#[allow(dead_code)]
 struct Scope {
-    symbols: HashMap<String, Variable>,
-    statements: LinkedList<Statement>,
+    symbols: HashMap<String, Symbol>
 }
 
-#[allow(dead_code)]
 impl Scope {
     pub fn new() -> Scope {
         Scope {
             symbols: HashMap::new(),
-            statements: LinkedList::new(),
         }
     }
 
-    fn declare(&mut self, identifier: &str) {
+    fn declare(&mut self, identifier: &str, dtype: DataType) {
         if self.symbols.contains_key(identifier) {
             panic!("Declared same variable twice");
         } else {
-            let var = Variable::new(identifier);
-            self.symbols.insert(identifier.to_string(), var);
+            let var = Variable {
+                id: identifier.to_string(),
+                data_type: RefCell::new(Some(dtype)),
+                content: RefCell::new(None),
+            };
+            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::new(var)));
         }
     }
 
     fn define(&mut self, identifier: &str, constant: Constant) {
-        if let Some(mut var) = self.symbols.get_mut(identifier) {
-            match &var.data_type {
-                Some(dt) if dt.clone() != constant.data_type().unwrap() =>
-                    panic!("Assigned to variable of different data type"),
-                Some(_) => var.content = Some(constant),
-                None => {
-                    var.data_type = constant.data_type();
-                    var.content = Some(constant);
+        if let Some(symbol) = self.symbols.get_mut(identifier) {
+            if let Symbol::Variable(var) = symbol {
+                match &var.get_type() {
+                    Some(dt) if dt.clone() != constant.data_type() =>
+                        panic!("Assigned to variable of different data type"),
+                    Some(_) => { var.content.replace(Some(constant)); }
+                    None => {
+                        var.data_type.replace(Some(constant.data_type()));
+                        var.content.replace(Some(constant));
+                    }
                 }
             }
         } else {
             let var = Variable {
                 id: identifier.to_string(),
-                data_type: constant.data_type(),
-                content: Some(constant),
+                data_type: RefCell::new(Some(constant.data_type())),
+                content: RefCell::new(Some(constant)),
             };
-            self.symbols.insert(identifier.to_string(), var);
+            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::new(var)));
         }
     }
 
@@ -120,21 +161,33 @@ impl Scope {
         self.symbols.contains_key(identifier)
     }
 
-    pub fn get(&self, identifier: &str) -> Option<&Variable> {
-        self.symbols.get(identifier)
+    pub fn get(&self, identifier: &str) -> Option<&Symbol> {
+        self.symbols.get(identifier).clone()
     }
 
-    pub fn eval(&self, identifier: &str) -> Option<Constant> {
+    pub fn eval(&self, identifier: &str) -> Option<Symbol> {
         match self.symbols.get(identifier) {
-            Some(var) => var.content.clone(),
+            Some(symbol) => {
+                match symbol {
+                    Symbol::Constant(_) | Symbol::Function(_) => Some(symbol.clone()),
+                    Symbol::Variable(var) => {
+                        if let Some(constant) = var.eval() {
+                            Some(Symbol::Constant(constant))
+                        } else {
+                            panic!("Access to uninitialized variable");
+                        }
+                    }
+                }
+            }
             None => None
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_datatype(&self, identifier: &str) -> Option<DataType> {
         let symbol = self.symbols.get(identifier);
-        if let Some(var) = symbol {
-            var.data_type.clone()
+        if let Some(Symbol::Variable(var)) = symbol {
+            var.data_type.borrow().clone()
         } else {
             None
         }
@@ -147,16 +200,16 @@ impl Scope {
 #[derive(Clone, Debug)]
 pub struct Variable {
     id: String,
-    data_type: Option<DataType>,
-    content: Option<Constant>,
+    data_type: RefCell<Option<DataType>>,
+    content: RefCell<Option<Constant>>,
 }
 
 impl Variable {
     pub fn new(identifier: &str) -> Variable {
         Variable {
             id: identifier.to_string(),
-            data_type: None,
-            content: None,
+            data_type: RefCell::new(None),
+            content: RefCell::new(None),
         }
     }
 
@@ -165,26 +218,33 @@ impl Variable {
     }
 
     pub fn get_type(&self) -> Option<DataType> {
-        self.data_type.clone()
+        self.data_type.borrow().clone()
     }
 }
 
 impl Evaluable for Variable {
     fn data_type(&self) -> Option<DataType> {
-        self.data_type.clone()
+        self.get_type()
     }
 
-    fn eval(&self, _program: &mut Program) -> Option<Constant> {
-        self.content.clone()
+    fn eval(&self) -> Option<Constant> {
+        self.content.borrow().clone()
     }
 }
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(dtype) = &self.data_type {
+        if let Some(dtype) = &self.data_type() {
             write!(f, "{:?} {}", dtype, self.id)
         } else {
             write!(f, "Unknown {}", self.id)
         }
     }
+}
+
+#[derive(Clone)]
+pub enum Symbol {
+    Constant(Constant),
+    Variable(Rc<Variable>),
+    Function(Rc<Function>),
 }

@@ -14,7 +14,8 @@ mod tests {
             if pair.as_rule() != Rule::expression {
                 panic!("Parsed the wrong kind of data");
             }
-            if let Ok(expression) = Expression::from(pair) {
+            let env = Environment::new();
+            if let Ok(expression) = Expression::from(pair, &env) {
                 assert_eq!(expression.data_type().unwrap(), DataType::Int);
                 assert_eq!(expression.eval(&Environment::new()),
                            Constant::Int(1001));

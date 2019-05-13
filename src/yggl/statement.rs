@@ -1,9 +1,10 @@
 use std::string::ToString;
 use std::fmt;
-use crate::yggl::data::{DataType, Evaluable};
-use crate::yggl::environment::Environment;
+use std::rc::Rc;
+use crate::yggl::data::DataType;
+use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::expression::Expression;
-use crate::yggl::function::FunctionCall;
+use crate::yggl::function::{FunctionCall, Function};
 use crate::yggl::flow::{Conditional, Cycle};
 
 /// Statements are standalone instructions.
@@ -11,15 +12,14 @@ use crate::yggl::flow::{Conditional, Cycle};
 #[allow(dead_code)]
 pub enum Statement {
     Assignment(String, Expression),
-    FunctionDef(usize),
-    Call(FunctionCall, Vec<Expression>),
+    FunctionDef(Rc<Function>),
+    Call(FunctionCall),
     Conditional(Conditional),
     Cycle(Cycle),
     Print(Vec<Expression>),
-    Return(Box<Evaluable>),
+    Return(Rc<Variable>),
 }
 
-#[allow(dead_code)]
 impl Statement {
     pub fn run(&self, env: &mut Environment) {
         match self {
@@ -84,8 +84,8 @@ impl<'a> fmt::Display for Statement {
         match self {
             Statement::Assignment(id, exp) =>
                 write!(f, "Assign {}->{}", exp, id),
-            Statement::FunctionDef(id) => write!(f, "Assign Fun->{}", id),
-            Statement::Call(_, _) => write!(f, "FunCall"),
+            Statement::FunctionDef(_) => write!(f, "Function definition"),
+            Statement::Call(_) => write!(f, "FunCall"),
             Statement::Print(_) => write!(f, "A print statement"),
             Statement::Return(_) => write!(f, "A return statement"),
             Statement::Conditional(_) => write!(f, "An if clause"),

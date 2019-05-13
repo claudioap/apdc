@@ -1,35 +1,37 @@
-use std::collections::{HashMap, LinkedList};
+use std::collections::LinkedList;
+use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
-use crate::yggl::language::Program;
 use crate::yggl::data::{DataType, Evaluable, Constant};
+use crate::yggl::expression::Expression;
 use crate::parser::CompilationError;
 
 /// The concept of a function, which is treated like subprogram within the program.
 /// Functions have their own environments. Outside variables aren't accessible from the inside,
 /// BUT outside static variables should be accessible (TODO)
-#[allow(dead_code)]
 pub struct Function {
     name: String,
     parameters: Vec<Variable>,
     environment: Environment,
-    static_vars: HashMap<String, Variable>,
     statements: LinkedList<Statement>,
     return_type: Option<DataType>,
 }
 
-#[allow(dead_code)]
 impl Function {
-    pub fn new(name: String, parameters: Vec<Variable>, statements: LinkedList<Statement>) -> Result<Function, CompilationError> {
+    pub fn new(environment: Environment, name: String, parameters: Vec<Variable>,
+               statements: LinkedList<Statement>) -> Result<Function, CompilationError> {
         let dtype = Function::determine_return(&statements)?;
         Ok(Function {
             name,
             parameters,
-            environment: Environment::new(),
-            static_vars: HashMap::new(),
+            environment,
             statements,
             return_type: dtype,
         })
+    }
+
+    pub fn get_name(&self) -> &str {
+        self.name.as_str()
     }
 
     fn determine_return(statements: &LinkedList<Statement>) -> Result<Option<DataType>, CompilationError> {
@@ -80,36 +82,32 @@ impl Function {
         self.return_type.clone()
     }
 
-    pub fn call(&mut self) -> Option<Constant> {
+    pub fn call(&self) -> Option<Constant> {
         None
     }
 }
 
 #[allow(dead_code)]
 pub struct FunctionCall {
-    // Functions vector index
-    index: usize,
-    dtype: Option<DataType>,
-    arguments: Vec<Box<Evaluable>>,
+    function: Rc<Function>,
+    arguments: Vec<Expression>,
 }
 
 #[allow(dead_code)]
 impl FunctionCall {
-    pub fn new(index: usize, dtype: Option<DataType>, arguments: Vec<Box<Evaluable>>) -> FunctionCall {
-        FunctionCall { index, dtype, arguments }
+    pub fn new(function: Rc<Function>, arguments: Vec<Expression>) -> FunctionCall {
+        FunctionCall { function, arguments }
     }
 
-    pub fn get_index(&self) -> usize {
-        return self.index;
+    pub fn get_function(&self) -> Rc<Function> {
+        return Rc::clone(&self.function);
     }
-}
 
-impl Evaluable for FunctionCall {
     fn data_type(&self) -> Option<DataType> {
-        self.dtype.clone()
+        self.function.data_type()
     }
 
-    fn eval(&self, program: &mut Program) -> Option<Constant> {
-        program.call_function(self.index)
+    fn eval(&self) -> Option<Constant> {
+        self.function.call()
     }
 }

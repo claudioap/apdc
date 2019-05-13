@@ -9,7 +9,7 @@ use std::process::exit;
 mod parser;
 use parser::lex;
 mod yggl;
-use yggl::language::*;
+use yggl::program::*;
 #[allow(unused_imports)]
 mod tests;
 

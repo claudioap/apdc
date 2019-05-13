@@ -1,12 +1,13 @@
-use crate::yggl::environment::Environment;
-use crate::yggl::data::{Constant, DataType, Evaluable};
 use std::{fmt, ops};
+use std::rc::Rc;
+use crate::yggl::environment::{Environment, Variable};
+use crate::yggl::data::{Constant, DataType, Evaluable};
 
 /// Expressions represent portions of code that evaluate to values
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub enum Expression {
-    Variable(String),
+    Variable(Rc<Variable>),
     Constant(Constant),
     UnaryOperation(Box<Expression>, UnaryOperation),
     BinaryOperation(Box<Expression>, BinaryOperation, Box<Expression>),
@@ -16,8 +17,13 @@ impl Expression {
     pub fn eval(&self, environment: &Environment) -> Constant {
         match self {
             &Expression::Constant(ref c) => c.clone(),
-            &Expression::Variable(ref var) =>
-                environment.eval(var.as_str()).unwrap(),
+            &Expression::Variable(ref var) => {
+                if let Some(c) = var.eval(){
+                    c
+                }else {
+                    panic!("Variable evaluation didn't return a constant")
+                }
+            }
             &Expression::UnaryOperation(ref exp, ref op) =>
                 match op {
                     UnaryOperation::Inc => exp.eval(environment) + Constant::Int(1),
@@ -42,8 +48,7 @@ impl Expression {
     pub fn bin_eval(&self, environment: &Environment) -> bool {
         match self {
             &Expression::Constant(ref c) => c.truth_value(),
-            &Expression::Variable(ref var) =>
-                environment.eval(var.as_str()).unwrap().truth_value(),
+            &Expression::Variable(_) => self.eval(environment).truth_value(),
             &Expression::UnaryOperation(ref exp, ref op) => {
                 match op {
                     UnaryOperation::Inc => (exp.eval(environment) + Constant::Int(1)).truth_value(),
@@ -85,7 +90,7 @@ impl Expression {
 
     pub fn data_type(&self) -> Option<DataType> {
         match self {
-            &Expression::Constant(ref c) => c.data_type(),
+            &Expression::Constant(ref c) => Some(c.data_type()),
             &Expression::UnaryOperation(ref exp, _) => exp.data_type(),
             &Expression::BinaryOperation(ref exp, _, _) => exp.data_type(),
             _ => { None }
@@ -104,6 +109,7 @@ impl Expression {
             }
         }
     }
+
 }
 
 impl fmt::Display for Expression {
@@ -219,7 +225,6 @@ impl fmt::Display for UnaryOperation {
 }
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub enum BinaryOperation { Sum, Sub, Mul, Div, Pow, Eq, Neq, Gr, Geq, Le, Leq, And, Or }
 
 impl fmt::Display for BinaryOperation {

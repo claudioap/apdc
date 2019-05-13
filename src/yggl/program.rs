@@ -1,9 +1,7 @@
-use std::collections::{HashMap, LinkedList, HashSet};
-use crate::yggl::environment::{Environment, Variable};
-use crate::yggl::statement::Statement;
-use crate::yggl::function::Function;
-use crate::yggl::data::Constant;
+use std::collections::{LinkedList, HashSet};
 use std::fmt;
+use crate::yggl::environment::Environment;
+use crate::yggl::statement::Statement;
 
 
 /// A program is the AST root.
@@ -14,9 +12,7 @@ use std::fmt;
 #[allow(dead_code)]
 pub struct Program {
     environment: Environment,
-    static_vars: HashMap<String, Variable>,
     statements: LinkedList<Statement>,
-    functions: Vec<Function>,
     includes: HashSet<Include>,
 }
 
@@ -25,9 +21,7 @@ impl Program {
     pub fn new() -> Program {
         Program {
             environment: Environment::new(),
-            static_vars: HashMap::new(),
             statements: LinkedList::new(),
-            functions: vec!(),
             includes: HashSet::new(),
         }
     }
@@ -50,7 +44,7 @@ impl Program {
             output.push_str(format!("{}\n", include).as_str());
         }
         output.push_str("\n// Functions\n");
-        for function in &self.functions {
+        for function in &self.environment.get_functions() {
             output.push_str(function.transpile().as_str());
             output.push('\n');
         }
@@ -68,25 +62,12 @@ impl Program {
         output
     }
 
-    pub fn add_function(&mut self, function: Function) -> usize {
-        self.functions.push(function);
-        self.functions.len() - 1
-    }
-
     pub fn get_env(&self) -> &Environment {
         &self.environment
     }
 
     pub fn get_env_mut(&mut self) -> &mut Environment {
         &mut self.environment
-    }
-
-    pub fn get_function(&self, identifier: usize) -> &Function {
-        &self.functions[identifier]
-    }
-
-    pub fn call_function(&mut self, identifier: usize) -> Option<Constant> {
-        self.functions[identifier].call()
     }
 
     pub fn require_include(&mut self, include: Include) {
