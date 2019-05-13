@@ -78,6 +78,10 @@ impl Environment {
         set
     }
 
+    pub fn get_includes(&self) -> &HashSet<Include> {
+        &self.includes
+    }
+
     pub fn get(&self, identifier: &str) -> Option<&Symbol> {
         match self.get_definition_scope(identifier) {
             Some(scope) => scope.get(identifier),
@@ -235,7 +239,7 @@ impl Evaluable for Variable {
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(dtype) = &self.data_type() {
-            write!(f, "{:?} {}", dtype, self.id)
+            write!(f, "{} {}", dtype.transpile(), self.id)
         } else {
             write!(f, "Unknown {}", self.id)
         }

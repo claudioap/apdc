@@ -40,7 +40,7 @@ impl Program {
         let mut output = String::new();
         output.reserve(1024 * 1024); // Reserve 1MB upfront as the new program buffer
         output.push_str("// Includes\n");
-        for include in &self.includes {
+        for include in self.environment.get_includes() {
             output.push_str(format!("{}\n", include).as_str());
         }
         output.push_str("\n// Functions\n");

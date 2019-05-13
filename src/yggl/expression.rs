@@ -91,16 +91,16 @@ impl Expression {
     pub fn data_type(&self) -> Option<DataType> {
         match self {
             &Expression::Constant(ref c) => Some(c.data_type()),
+            &Expression::Variable(ref v) => v.data_type(),
             &Expression::UnaryOperation(ref exp, _) => exp.data_type(),
-            &Expression::BinaryOperation(ref exp, _, _) => exp.data_type(),
-            _ => { None }
+            &Expression::BinaryOperation(ref exp, _, _) => exp.data_type()
         }
     }
 
     pub fn transpile(&self, env: &Environment) -> String {
         match self {
             &Expression::Constant(ref c) => format!("{}", c),
-            &Expression::Variable(ref v) => format!("{}", v),
+            &Expression::Variable(ref v) => format!("{}", v.get_identifier()),
             &Expression::UnaryOperation(ref exp, ref op) => {
                 format!("({}{})", op, exp.transpile(env))
             }
