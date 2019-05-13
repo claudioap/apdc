@@ -7,7 +7,7 @@ use pest::iterators::Pairs;
 use pest::error::Error;
 use pest::error::LineColLocation::*;
 use pest::prec_climber::*;
-use crate::yggl::data::{Constant, DataType};
+use crate::yggl::data::Constant;
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
 use crate::yggl::program::{Program, Include};
@@ -101,7 +101,6 @@ impl Statement {
                     }
                     Rule::function => {
                         let function = Function::from(pair, identifier)?;
-                        env.declare(function.get_name(), DataType::Function);
                         let function_rc = env.add_function(function);
                         return Ok(Statement::FunctionDef(function_rc));
                     }
@@ -327,13 +326,13 @@ impl Conditional {
 impl Function {
     pub fn from(pair: Pair<Rule>, name: String)
                 -> Result<Function, CompilationError> {
-        let parameters: Option<Vec<Variable>> = Option::None;
+        let mut parameters: Option<Vec<Rc<Variable>>> = Option::None;
         let mut statements: LinkedList<Statement> = LinkedList::new();
         let mut function_env = Environment::new();
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::parameters => {
-                    Function::read_parameters(pair);
+                    parameters = Some(Function::read_parameters(pair, &mut function_env));
                 }
                 Rule::statement => {
                     let statement = Statement::from(pair, &mut function_env)?;
@@ -357,15 +356,14 @@ impl Function {
         }
     }
 
-    fn read_parameters(pair: Pair<Rule>) -> Vec<Variable> {
+    fn read_parameters(pair: Pair<Rule>, env: &mut Environment) -> Vec<Rc<Variable>> {
         let mut parameters = vec!();
         for parameter_pair in pair.into_inner() {
-            let parameter = Variable::new(parameter_pair.as_str());
+            let parameter = env.touch(parameter_pair.as_str());
             parameters.push(parameter);
         }
         parameters
     }
-
 
     fn read_arguments(pair: Pair<Rule>, env: &Environment) -> Result<Vec<Expression>, CompilationError> {
         let mut arguments = vec!();

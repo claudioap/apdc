@@ -11,14 +11,14 @@ use crate::parser::CompilationError;
 /// BUT outside static variables should be accessible (TODO)
 pub struct Function {
     name: String,
-    parameters: Vec<Variable>,
+    parameters: Vec<Rc<Variable>>,
     environment: Environment,
     statements: LinkedList<Statement>,
     return_type: Option<DataType>,
 }
 
 impl Function {
-    pub fn new(environment: Environment, name: String, parameters: Vec<Variable>,
+    pub fn new(environment: Environment, name: String, parameters: Vec<Rc<Variable>>,
                statements: LinkedList<Statement>) -> Result<Function, CompilationError> {
         let dtype = Function::determine_return(&statements)?;
         Ok(Function {
@@ -58,7 +58,7 @@ impl Function {
         };
         let mut result = String::new();
         result.reserve(1024 * 10); // Reserve 10 KB to prevent further allocations
-        result.push_str(format!("{} {}((", rtype, self.name).as_str());
+        result.push_str(format!("{} {}(", rtype, self.name).as_str());
         for parameter in &self.parameters {
             let dtype = parameter.get_type().expect("Parameter type unknown");
             let identifier = parameter.get_identifier();
@@ -67,8 +67,12 @@ impl Function {
             result.push_str(identifier);
             result.push(',');
         }
-        result.pop();// Remove last comma
-        result.push_str("){\n");
+        if self.parameters.is_empty(){
+            result.push_str("){\n");
+        }else{
+            result.pop();// Remove last comma
+            result.push_str("){\n");
+        }
         for statement in &self.statements {
             result.push_str(format!(
                 "    {}\n",

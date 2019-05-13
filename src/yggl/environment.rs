@@ -57,11 +57,15 @@ impl Environment {
         None
     }
 
+    pub fn touch(&mut self, identifier: &str) -> Rc<Variable> {
+        self.get_current_scope().touch(identifier)
+    }
+
     pub fn declare(&mut self, identifier: &str, dtype: DataType) {
         self.get_current_scope().declare(identifier, dtype);
     }
 
-    pub fn define(&mut self, identifier: &str, constant: Constant) {
+    pub fn define(&mut self, identifier: &str, constant: Constant) -> Rc<Variable> {
         match self.get_definition_scope_mut(identifier) {
             Some(scope) => scope.define(identifier, constant),
             None => self.get_current_scope().define(identifier, constant)
@@ -125,20 +129,46 @@ impl Scope {
         }
     }
 
-    fn declare(&mut self, identifier: &str, dtype: DataType) {
+    fn touch(&mut self, identifier: &str) -> Rc<Variable> {
         if self.symbols.contains_key(identifier) {
             panic!("Declared same variable twice");
         } else {
-            let var = Variable {
+            let var = Rc::new(Variable {
                 id: identifier.to_string(),
-                data_type: RefCell::new(Some(dtype)),
+                data_type: RefCell::new(None),
                 content: RefCell::new(None),
-            };
-            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::new(var)));
+            });
+            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
+            var
         }
     }
 
-    fn define(&mut self, identifier: &str, constant: Constant) {
+    fn declare(&mut self, identifier: &str, dtype: DataType) -> Rc<Variable> {
+        if let Some(symbol) = self.symbols.get(identifier) {
+            if let Symbol::Variable(var) = symbol {
+                if let Some(cdtype) = var.data_type() {
+                    if dtype != cdtype {
+                        panic!("Attempted to change a symbol data type");
+                    }
+                } else {
+                    var.data_type.replace(Some(dtype));
+                }
+                Rc::clone(var)
+            } else {
+                unreachable!();
+            }
+        } else {
+            let var = Rc::new(Variable {
+                id: identifier.to_string(),
+                data_type: RefCell::new(Some(dtype)),
+                content: RefCell::new(None),
+            });
+            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
+            var
+        }
+    }
+
+    fn define(&mut self, identifier: &str, constant: Constant) -> Rc<Variable> {
         if let Some(symbol) = self.symbols.get_mut(identifier) {
             if let Symbol::Variable(var) = symbol {
                 match &var.get_type() {
@@ -150,14 +180,18 @@ impl Scope {
                         var.content.replace(Some(constant));
                     }
                 }
+                Rc::clone(var)
+            } else {
+                unreachable!();
             }
         } else {
-            let var = Variable {
+            let var = Rc::new(Variable {
                 id: identifier.to_string(),
                 data_type: RefCell::new(Some(constant.data_type())),
                 content: RefCell::new(Some(constant)),
-            };
-            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::new(var)));
+            });
+            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
+            var
         }
     }
 
@@ -209,14 +243,6 @@ pub struct Variable {
 }
 
 impl Variable {
-    pub fn new(identifier: &str) -> Variable {
-        Variable {
-            id: identifier.to_string(),
-            data_type: RefCell::new(None),
-            content: RefCell::new(None),
-        }
-    }
-
     pub fn get_identifier(&self) -> &str {
         self.id.as_str()
     }
