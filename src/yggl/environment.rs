@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use crate::yggl::data::{Constant, DataType, Evaluable};
 use crate::yggl::function::Function;
 use crate::yggl::program::Include;
+use crate::yggl::structure::StructDecl;
 
 /// A program has a set of environments, which hold variable data.
 pub struct Environment {
@@ -82,6 +83,16 @@ impl Environment {
         set
     }
 
+    pub fn get_struct_defs(&self) -> Vec<&Rc<StructDecl>> {
+        let mut set = vec!();
+        for (_, symbol) in &self.symbols {
+            if let Symbol::StructDecl(function) = symbol {
+                set.push(function);
+            }
+        }
+        set
+    }
+
     pub fn get_includes(&self) -> &HashSet<Include> {
         &self.includes
     }
@@ -108,6 +119,13 @@ impl Environment {
         let function_rc = Rc::new(function);
         self.symbols.insert(name, Symbol::Function(Rc::clone(&function_rc)));
         function_rc
+    }
+
+    pub fn add_struct_def(&mut self, struct_def: StructDecl) -> Rc<StructDecl> {
+        let name = struct_def.get_name().to_string();
+        let struct_def_rc = Rc::new(struct_def);
+        self.symbols.insert(name, Symbol::StructDecl(Rc::clone(&struct_def_rc)));
+        struct_def_rc
     }
 
     pub fn require_include(&mut self, include: Include) {
@@ -215,6 +233,7 @@ impl Scope {
                             panic!("Access to uninitialized variable");
                         }
                     }
+                    Symbol::StructDecl(_) => {None}
                 }
             }
             None => None
@@ -277,4 +296,5 @@ pub enum Symbol {
     Constant(Constant),
     Variable(Rc<Variable>),
     Function(Rc<Function>),
+    StructDecl(Rc<StructDecl>)
 }

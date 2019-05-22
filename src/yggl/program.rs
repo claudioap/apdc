@@ -48,6 +48,11 @@ impl Program {
             output.push_str(function.transpile().as_str());
             output.push('\n');
         }
+        output.push_str("\n// Structures\n");
+        for struct_def in self.environment.get_struct_defs() {
+            output.push_str(struct_def.transpile().as_str());
+            output.push('\n');
+        }
         output.push_str("int main(){\n");
         for statement in &self.statements {
             let transpilation = statement.transpile(&self.environment).replace("\n", "\n    ");

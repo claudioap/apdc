@@ -68,7 +68,7 @@ impl Cycle {
                 output.push('}');
             }
             Cycle::While(condition, statements) => {
-                output.push_str(format!("while {} {{\n", condition.transpile(env)).as_str());
+                output.push_str(format!("while ({}) {{\n", condition.transpile(env)).as_str());
                 for statement in statements {
                     output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
                 }
@@ -79,7 +79,7 @@ impl Cycle {
                 for statement in statements {
                     output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
                 }
-                output.push_str(format!("}} while {};", condition.transpile(env)).as_str());
+                output.push_str(format!("}} while ({});", condition.transpile(env)).as_str());
             }
             Cycle::For(initialization, condition, posrun, statements) => {
                 if let Some(posrun_statement) = posrun {

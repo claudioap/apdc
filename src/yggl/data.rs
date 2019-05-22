@@ -1,8 +1,8 @@
 use std::{fmt, ops};
 
 #[allow(dead_code)]
-#[derive(Clone, PartialEq, Debug)]
-pub enum DataType { Bool, Int, Float, Char, String, Function }
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum DataType { Bool, Int, Float, Char, String, Function, Struct}
 
 impl DataType {
     pub fn transpile(&self) -> &str {
@@ -13,6 +13,7 @@ impl DataType {
             DataType::Char => "char",
             DataType::String => panic!("Not meant to be transpiled."),
             DataType::Function => panic!("Not meant to be transpiled."),
+            DataType::Struct => panic!("Not meant to be transpiled."),
         }
     }
 }
@@ -89,7 +90,7 @@ impl fmt::Display for Constant {
             Constant::Bool(b) => write!(f, "{}", b),
             Constant::Int(i) => write!(f, "{}", i),
             Constant::Float(i) => write!(f, "{}", i),
-            Constant::String(s) => write!(f, "{}", s),
+            Constant::String(s) => write!(f, "\"{}\"", s),
             Constant::Char(c) => write!(f, "{}", c),
         }
     }

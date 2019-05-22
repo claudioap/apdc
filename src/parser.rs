@@ -1,4 +1,5 @@
 use std::collections::linked_list::LinkedList;
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 use pest::Parser;
@@ -7,13 +8,14 @@ use pest::iterators::Pairs;
 use pest::error::Error;
 use pest::error::LineColLocation::*;
 use pest::prec_climber::*;
-use crate::yggl::data::Constant;
+use crate::yggl::data::{Constant, DataType};
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
 use crate::yggl::program::{Program, Include};
 use crate::yggl::environment::{Variable, Environment, Symbol};
 use crate::yggl::function::*;
 use crate::yggl::flow::{Conditional, Cycle};
+use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -103,6 +105,21 @@ impl Statement {
                         let function = Function::from(pair, identifier)?;
                         let function_rc = env.add_function(function);
                         return Ok(Statement::FunctionDef(function_rc));
+                    }
+                    Rule::struct_decl => {
+                        let struct_decl = StructDecl::from(pair, identifier)?;
+                        let struct_decl_rc = env.add_struct_def(struct_decl);
+                        return Ok(Statement::StructDecl(struct_decl_rc));
+                    }
+                    Rule::struct_def => {
+                        env.declare(identifier.as_str(), DataType::Struct);
+                        if let Some(Symbol::Variable(variable)) = env.get(identifier.as_str()) {
+                            let struct_def = StructDef::from(pair, env)?;
+                            let struct_def_rc = Rc::new(struct_def);
+                            return Ok(Statement::StructDef(Rc::clone(variable), struct_def_rc));
+                        } else {
+                            unreachable!()
+                        }
                     }
                     _ => unreachable!()
                 }
@@ -210,6 +227,12 @@ impl Expression {
                     Rule::expression => Expression::from(pair, env),
                     Rule::number => //TODO Trait std::str::FromStr
                         Ok(Expression::Constant(Constant::parse_number(pair.as_str()))),
+                    Rule::boolean =>
+                        Ok(Expression::Constant(Constant::Bool(pair.as_str() == "true"))),
+                    Rule::string => {
+                        let inner = pair.into_inner().next().unwrap();
+                        Ok(Expression::Constant(Constant::String(inner.as_str().to_string())))
+                    }
                     Rule::identifier => {
                         match env.get(pair.as_str()) {
                             Some(Symbol::Constant(c)) => Ok(Expression::Constant(c.clone())),
@@ -219,7 +242,7 @@ impl Expression {
                                 format!("Failed to resolve symbol {}", pair.as_str())))
                         }
                     }
-                    _ => unreachable!("\n{:?}\n", pair),
+                    _ => unreachable!("{}", pair),
                 },
             |lhs: Result<Expression, CompilationError>, op: Pair<Rule>, rhs: Result<Expression, CompilationError>|
                 {
@@ -394,6 +417,34 @@ impl Function {
                     0, 0, "".to_string(),
                     format!("Identifier {} isn't defined.", { identifier })))
             }
+        }
+    }
+}
+
+impl StructDecl {
+    pub fn from(pair: Pair<Rule>, name: String) -> Result<StructDecl, CompilationError> {
+        let mut attributes = vec!();
+        for pair in pair.into_inner() {
+            let attribute = Attribute::new(pair.as_str().to_string(), None);
+            attributes.push(attribute);
+        }
+        Ok(StructDecl::new(name, attributes))
+    }
+}
+
+impl StructDef {
+    pub fn from(pair: Pair<Rule>, env: &Environment) -> Result<StructDef, CompilationError> {
+        let mut inner = pair.into_inner();
+        let identifier = inner.next().unwrap().as_str();
+        match env.get(identifier) {
+            Some(Symbol::StructDecl(declaration)) => {
+                // TODO attribute initialization
+                Ok(StructDef::new(Rc::clone(declaration), HashMap::new()))
+            }
+            _ => Err(CompilationError::new(
+                0, 0,
+                "".to_string(),
+                "Attempted to build a struct from another symbol".to_string()))
         }
     }
 }

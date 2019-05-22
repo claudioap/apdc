@@ -60,9 +60,13 @@ parameter = { string | identifier }
 parameters = {"(" ~  identifier ~ ("," ~ identifier)*~ ")"}
 arguments = {"(" ~ (expression ~ ("," ~ expression)*)?~ ")"}
 function = {
-    "Fun" ~ parameters? // arguments (including brackets) optional
+    "fun" ~ parameters? // arguments (including brackets) optional
     ~ "{"  ~ statement* ~ "}"
 }
+struct_decl = {
+    "struct" ~ "{"  ~ ((identifier ~ ",")*) ~ identifier ~ "}"
+}
+struct_def = { identifier ~ dict }
 
 /* ########## FLOW CONTROL ########## */
 body = { statement+ }
@@ -108,7 +112,7 @@ cycle_for = {
 }
 
 /* ########## OPERATIONS ########## */
-assignment = {identifier ~ "=" ~ (function|protocol|expression)}
+assignment = {identifier ~ "=" ~ (function|struct_decl|struct_def|protocol|expression)}
 function_call = {identifier ~ arguments}
 object_call = {identifier ~ "." ~ identifier ~ arguments}
 

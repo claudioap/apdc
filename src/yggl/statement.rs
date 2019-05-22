@@ -6,11 +6,13 @@ use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::expression::Expression;
 use crate::yggl::function::{FunctionCall, Function};
 use crate::yggl::flow::{Conditional, Cycle};
+use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 
 /// Statements are standalone instructions.
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
 #[allow(dead_code)]
 pub enum Statement {
+    // TODO String -> Rc<Variable>, Constants?!?
     Assignment(String, Expression),
     FunctionDef(Rc<Function>),
     Call(FunctionCall),
@@ -18,6 +20,10 @@ pub enum Statement {
     Cycle(Cycle),
     Print(Vec<Expression>),
     Return(Rc<Variable>),
+    StructDecl(Rc<StructDecl>),
+    StructDef(Rc<Variable>, Rc<StructDef>),
+    AttributeAccess(Rc<Variable>),
+    AttributeChange(Rc<Variable>, Rc<Attribute>, Expression),
 }
 
 impl Statement {
@@ -62,11 +68,14 @@ impl Statement {
                                 // TODO maybe call if function takes no parameters
                                 panic!("Attempted to print a function...");
                             }
+                            DataType::Struct => {
+                                panic!("Attempted to print a struct...");
+                            }
                         }
                         expressions_string.push_str(",");
                         expressions_string.push_str(expression.transpile(env).as_str());
                     } else {
-                        panic!("Print of non-valued expression");
+                        panic!("Print of non-valued expression: {}", expression);
                     }
                 }
 
@@ -74,6 +83,9 @@ impl Statement {
             }
             &Statement::Conditional(ref conditional) => conditional.transpile(env),
             &Statement::Cycle(ref cycle) => cycle.transpile(env),
+            &Statement::StructDef(ref var, ref definition) => {
+                format!("struct {} {};", definition.get_declaration().get_name(), var.get_identifier())
+            }
             _ => { "".to_string() }
         }
     }
@@ -90,6 +102,8 @@ impl<'a> fmt::Display for Statement {
             Statement::Return(_) => write!(f, "A return statement"),
             Statement::Conditional(_) => write!(f, "An if clause"),
             Statement::Cycle(_) => write!(f, "A cycle"),
+            Statement::StructDecl(def) => write!(f, "{}", def),
+            _ => write!(f, "TODO")
         }
     }
 }
