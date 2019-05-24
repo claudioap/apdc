@@ -8,7 +8,7 @@ use pest::iterators::Pairs;
 use pest::error::Error;
 use pest::error::LineColLocation::*;
 use pest::prec_climber::*;
-use crate::yggl::data::{Constant, DataType};
+use crate::yggl::data::{Constant, DataType, Evaluable};
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
 use crate::yggl::program::{Program, Include};
@@ -112,10 +112,11 @@ impl Statement {
                         return Ok(Statement::StructDecl(struct_decl_rc));
                     }
                     Rule::struct_def => {
-                        env.declare(identifier.as_str(), DataType::Struct);
+                        let struct_def = StructDef::from(pair, env)?;
+                        let struct_decl = struct_def.get_declaration();
+                        env.declare(identifier.as_str(), DataType::Struct(struct_decl));
+                        let struct_def_rc = Rc::new(struct_def);
                         if let Some(Symbol::Variable(variable)) = env.get(identifier.as_str()) {
-                            let struct_def = StructDef::from(pair, env)?;
-                            let struct_def_rc = Rc::new(struct_def);
                             return Ok(Statement::StructDef(Rc::clone(variable), struct_def_rc));
                         } else {
                             unreachable!()
@@ -240,6 +241,41 @@ impl Expression {
                             _ => Err(CompilationError::new(
                                 0, 0, "".to_string(),
                                 format!("Failed to resolve symbol {}", pair.as_str())))
+                        }
+                    }
+                    Rule::attribute_access => {
+                        let mut inner = pair.into_inner();
+                        let object_name = inner.next().unwrap().as_str();
+                        let attr_name = inner.next().unwrap().as_str();
+                        if let Some(symbol) = env.get(object_name) {
+                            let var = match symbol {
+                                Symbol::Variable(var) => Rc::clone(var),
+                                _ => return Err(
+                                    CompilationError::new(
+                                        0, 0, "".to_string(),
+                                        format!("\"{}\" is not an object", object_name)))
+                            };
+
+
+                            match var.data_type() {
+                                Some(DataType::Struct(struct_decl)) => {
+                                    if let Some(attr) = struct_decl.get_attribute(attr_name) {
+                                        Ok(Expression::AttributeAccess(var, attr))
+                                    } else {
+                                        Err(CompilationError::new(
+                                            0, 0, "".to_string(),
+                                            format!("Unable to access \"{}\".\"{}\"", object_name, attr_name)))
+                                    }
+                                }
+                                _ =>
+                                    Err(CompilationError::new(
+                                        0, 0, "".to_string(),
+                                        format!("\"{}\" is not an object", object_name)))
+                            }
+                        } else {
+                            Err(CompilationError::new(
+                                0, 0, "".to_string(),
+                                format!("\"{}\" is not declared", object_name)))
                         }
                     }
                     _ => unreachable!("{}", pair),
@@ -426,7 +462,7 @@ impl StructDecl {
         let mut attributes = vec!();
         for pair in pair.into_inner() {
             let attribute = Attribute::new(pair.as_str().to_string(), None);
-            attributes.push(attribute);
+            attributes.push(Rc::new(attribute));
         }
         Ok(StructDecl::new(name, attributes))
     }

@@ -2,15 +2,17 @@ use std::{fmt, ops};
 use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::data::{Constant, DataType, Evaluable};
+use crate::yggl::structure::Attribute;
 
 /// Expressions represent portions of code that evaluate to values
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 #[allow(dead_code)]
 pub enum Expression {
     Variable(Rc<Variable>),
     Constant(Constant),
     UnaryOperation(Box<Expression>, UnaryOperation),
     BinaryOperation(Box<Expression>, BinaryOperation, Box<Expression>),
+    AttributeAccess(Rc<Variable>, Rc<Attribute>),
 }
 
 impl Expression {
@@ -41,6 +43,9 @@ impl Expression {
                     BinaryOperation::And | BinaryOperation::Or =>
                         Constant::Bool(self.bin_eval(environment)),
                 }
+            }
+            &Expression::AttributeAccess(_, _) => {
+                unimplemented!();
             }
         }
     }
@@ -85,6 +90,7 @@ impl Expression {
                         lexp.eval(environment).truth_value() || rexp.eval(environment).truth_value(),
                 }
             }
+            &Expression::AttributeAccess(_, _) => {unimplemented!()}
         }
     }
 
@@ -93,7 +99,8 @@ impl Expression {
             &Expression::Constant(ref c) => Some(c.data_type()),
             &Expression::Variable(ref v) => v.data_type(),
             &Expression::UnaryOperation(ref exp, _) => exp.data_type(),
-            &Expression::BinaryOperation(ref exp, _, _) => exp.data_type()
+            &Expression::BinaryOperation(ref exp, _, _) => exp.data_type(),
+            &Expression::AttributeAccess(_, ref attr) => attr.data_type()
         }
     }
 
@@ -107,6 +114,9 @@ impl Expression {
             &Expression::BinaryOperation(ref lhs, ref op, ref rhs) => {
                 format!("({} {} {})", lhs.transpile(env), op, rhs.transpile(env))
             }
+            &Expression::AttributeAccess(ref var, ref attr) => {
+                attr.access_transpile(&var)
+            }
         }
     }
 
@@ -119,6 +129,7 @@ impl fmt::Display for Expression {
             &Expression::Constant(v) => write!(f, "{}", v),
             &Expression::UnaryOperation(a, op) => write!(f, "{}{}", a, op),
             &Expression::BinaryOperation(l, op, r) => write!(f, "({}{}{})", l, op, r),
+            &Expression::AttributeAccess(var, attr) => write!(f, "{}", attr.access_transpile(&var))
         }
     }
 }

@@ -30,7 +30,7 @@ dict = {
 /* ########## VARIABLES AND EVALUATION ########## */
 identifier = @{!ASCII_DIGIT ~(ASCII_ALPHANUMERIC | "_" | "-")+}
 value = _{string | number | boolean | dict | identifier }
-evaluable = _{ "("~ evaluable ~")" | function_call | object | object_call | value | identifier}
+evaluable = _{ "("~ evaluable ~")" | function_call | attribute_access | object | object_call | value | identifier}
 
 
 binop = _{add|sub|mul|div|rem|pow|eq|le|leq|gr|geq|and|or}
@@ -67,6 +67,7 @@ struct_decl = {
     "struct" ~ "{"  ~ ((identifier ~ ",")*) ~ identifier ~ "}"
 }
 struct_def = { identifier ~ dict }
+attribute_access = {identifier ~ "." ~ identifier}
 
 /* ########## FLOW CONTROL ########## */
 body = { statement+ }

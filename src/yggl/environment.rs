@@ -233,7 +233,7 @@ impl Scope {
                             panic!("Access to uninitialized variable");
                         }
                     }
-                    Symbol::StructDecl(_) => {None}
+                    Symbol::StructDecl(_) => { None }
                 }
             }
             None => None
@@ -254,13 +254,14 @@ impl Scope {
 /// Variables are data values that belong to the environment
 /// A variable's type is inferred upon the first usage
 /// Therefore, once the parsing is done, any variable without a type is an error.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Variable {
     id: String,
     data_type: RefCell<Option<DataType>>,
     content: RefCell<Option<Constant>>,
 }
 
+#[allow(dead_code)]
 impl Variable {
     pub fn get_identifier(&self) -> &str {
         self.id.as_str()
@@ -268,6 +269,10 @@ impl Variable {
 
     pub fn get_type(&self) -> Option<DataType> {
         self.data_type.borrow().clone()
+    }
+
+    pub fn get_content(&self) -> Option<Constant> {
+        self.content.borrow().clone()
     }
 }
 
@@ -296,5 +301,5 @@ pub enum Symbol {
     Constant(Constant),
     Variable(Rc<Variable>),
     Function(Rc<Function>),
-    StructDecl(Rc<StructDecl>)
+    StructDecl(Rc<StructDecl>),
 }

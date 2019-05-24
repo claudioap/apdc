@@ -22,8 +22,12 @@ pub enum Statement {
     Return(Rc<Variable>),
     StructDecl(Rc<StructDecl>),
     StructDef(Rc<Variable>, Rc<StructDef>),
-    AttributeAccess(Rc<Variable>),
-    AttributeChange(Rc<Variable>, Rc<Attribute>, Expression),
+    AttributeAssignment(Rc<Variable>, Rc<Attribute>, Expression),
+//    ProtocolDef(),
+//    TimerInit(),
+//    TimerAction(),
+//    MessageInit(),
+//    MessageAttribute(),
 }
 
 impl Statement {
@@ -68,9 +72,8 @@ impl Statement {
                                 // TODO maybe call if function takes no parameters
                                 panic!("Attempted to print a function...");
                             }
-                            DataType::Struct => {
-                                panic!("Attempted to print a struct...");
-                            }
+                            DataType::Struct(_) => panic!("Attempted to print a struct..."),
+                            DataType::Reference(_) => panic!("Attempted to print a reference..."),
                         }
                         expressions_string.push_str(",");
                         expressions_string.push_str(expression.transpile(env).as_str());

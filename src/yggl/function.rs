@@ -17,6 +17,7 @@ pub struct Function {
     return_type: Option<DataType>,
 }
 
+#[allow(dead_code)]
 impl Function {
     pub fn new(environment: Environment, name: String, parameters: Vec<Rc<Variable>>,
                statements: LinkedList<Statement>) -> Result<Function, CompilationError> {
@@ -32,6 +33,10 @@ impl Function {
 
     pub fn get_name(&self) -> &str {
         self.name.as_str()
+    }
+
+    pub fn get_return(&self) -> Option<DataType> {
+        self.return_type.clone()
     }
 
     fn determine_return(statements: &LinkedList<Statement>) -> Result<Option<DataType>, CompilationError> {
@@ -54,7 +59,7 @@ impl Function {
     pub fn transpile(&self) -> String {
         let rtype = match &self.return_type {
             Some(dtype) => dtype.transpile(),
-            _ => "void"
+            _ => "void".to_string()
         };
         let mut result = String::new();
         result.reserve(1024 * 10); // Reserve 10 KB to prevent further allocations
@@ -62,14 +67,14 @@ impl Function {
         for parameter in &self.parameters {
             let dtype = parameter.get_type().expect("Parameter type unknown");
             let identifier = parameter.get_identifier();
-            result.push_str(dtype.transpile());
+            result.push_str(dtype.transpile().as_str());
             result.push(' ');
             result.push_str(identifier);
             result.push(',');
         }
-        if self.parameters.is_empty(){
+        if self.parameters.is_empty() {
             result.push_str("){\n");
-        }else{
+        } else {
             result.pop();// Remove last comma
             result.push_str("){\n");
         }

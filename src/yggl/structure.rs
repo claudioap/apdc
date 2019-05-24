@@ -3,7 +3,7 @@ use std::fmt;
 use std::hash::Hasher;
 use std::collections::HashMap;
 use crate::yggl::data::{DataType, Constant};
-use crate::yggl::environment::Symbol;
+use crate::yggl::environment::Variable;
 use crate::yggl::expression::Expression;
 
 #[allow(dead_code)]
@@ -19,7 +19,7 @@ pub struct LocalAttribute {
 
 pub struct ForeignAttribute {
     name: String,
-    _dtype: Option<DataType>,
+    dtype: Option<DataType>,
     _lambda: fn(Vec<Expression>) -> Option<Constant>,
 }
 
@@ -33,6 +33,20 @@ impl Attribute {
         match self {
             Attribute::Local(local) => local.name.as_str(),
             Attribute::Foreign(foreign) => foreign.name.as_str(),
+        }
+    }
+
+    pub fn data_type(&self) -> Option<DataType> {
+        match self {
+            Attribute::Local(local) => local.dtype.clone(),
+            Attribute::Foreign(foreign) => foreign.dtype.clone()
+        }
+    }
+
+    pub fn access_transpile(&self, var: &Rc<Variable>) -> String {
+        match self {
+            Attribute::Local(attr) => format!("{}.{}", var.get_identifier(), attr.name),
+            Attribute::Foreign(_attr) => unimplemented!(),
         }
     }
 }
@@ -69,26 +83,50 @@ impl fmt::Display for Attribute {
 
 pub struct StructDecl {
     name: String,
-    attributes: Vec<Attribute>,
+    attributes: Vec<Rc<Attribute>>,
 }
 
 
 impl StructDecl {
-    pub fn new(name: String, attributes: Vec<Attribute>) -> StructDecl {
+    pub fn new(name: String, attributes: Vec<Rc<Attribute>>) -> StructDecl {
         StructDecl {
             name,
             attributes,
         }
     }
 
-    pub fn get_name(&self) -> &str {
-        self.name.as_str()
+    pub fn get_name(&self) -> String {
+        self.name.as_str().to_string()
+    }
+
+    pub fn get_attribute(&self, name: &str) -> Option<Rc<Attribute>> {
+        for attribute in &self.attributes {
+            if attribute.get_name() == name {
+                return Some(Rc::clone(&attribute));
+            }
+        }
+        None
     }
 
     pub fn transpile(&self) -> String {
         format!("{}\n", self)
     }
 }
+
+impl std::cmp::PartialEq for StructDecl {
+    fn eq(&self, _other: &StructDecl) -> bool {
+        unimplemented!()
+    }
+}
+
+impl std::cmp::Eq for StructDecl {}
+
+impl std::hash::Hash for StructDecl {
+    fn hash<H: Hasher>(&self, _state: &mut H) {
+        unimplemented!()
+    }
+}
+
 
 impl fmt::Display for StructDecl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -100,13 +138,19 @@ impl fmt::Display for StructDecl {
     }
 }
 
+impl fmt::Debug for StructDecl {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 pub struct StructDef {
     definition: Rc<StructDecl>,
-    _fields: HashMap<Rc<Attribute>, Option<Symbol>>,
+    _fields: HashMap<Rc<Attribute>, Option<Rc<Variable>>>,
 }
 
 impl StructDef {
-    pub fn new(definition: Rc<StructDecl>, _fields: HashMap<Rc<Attribute>, Option<Symbol>>) -> StructDef {
+    pub fn new(definition: Rc<StructDecl>, _fields: HashMap<Rc<Attribute>, Option<Rc<Variable>>>) -> StructDef {
         StructDef {
             definition,
             _fields,
