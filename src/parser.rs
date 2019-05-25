@@ -128,97 +128,126 @@ impl Statement {
     fn parse_assignment(pair: Pair<Rule>, env: &mut Environment) -> Result<Statement, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let lhs_pair = inner_rules.next().unwrap();
-
-        let mut identifier_sym: Option<&Symbol> = None;
-        let mut variable_sym: Option<Rc<Variable>> = None;
-        let mut attribute: Option<Rc<Attribute>> = None;
-
-        let identifier_str: &str;
-
-        match lhs_pair.as_rule() {
-            Rule::identifier => {
-                identifier_str = lhs_pair.as_str();
-                if let Some(symbol) = env.get(identifier_str) {
-                    match symbol {
-                        Symbol::Variable(_) | Symbol::Constant(_) => identifier_sym = Some(symbol),
-                        _ => {
-                            return Err(
-                                CompilationError::new(
-                                    0, 0, "".to_string(),
-                                    "Attribution to constant field.".to_string()));
-                        }
-                    }
-                }
-            }
-            Rule::attribute => {
-                let mut inner = lhs_pair.into_inner();
-                identifier_str = inner.next().unwrap().as_str();
-                let attribute_str = inner.next().unwrap().as_str();
-
-                if let Some(Symbol::Variable(var)) = env.get(identifier_str) {
-                    variable_sym = Some(Rc::clone(var));
-
-                    if let Some(DataType::Struct(decl)) = var.data_type() {
-                        if let Some(attr) = decl.get_attribute(attribute_str) {
-                            attribute = Some(attr)
-                        } else {
-                            return Err(CompilationError::new(
-                                0, 0, "".to_string(),
-                                format!("Attribute {} not found", attribute_str)));
-                        }
-                    } else {
-                        return Err(CompilationError::new(
-                            0, 0, "".to_string(),
-                            "Attribution to field of non-struct".to_string()));
-                    }
-                } else {
-                    return Err(CompilationError::new(
-                        0, 0, "".to_string(),
-                        "Attribution to field of non-struct".to_string()));
-                }
-            }
-            _ => unreachable!("Unknown assignment LHS")
-        }
-
         let rhs_pair = inner_rules.next().unwrap();
         match rhs_pair.as_rule() {
             Rule::expression => {
                 let expression = Expression::from(rhs_pair, env)?;
-
-                if let Some(attr) = attribute {
-                    attr.set_data_type(expression.data_type());
-                    return Ok(Statement::AttributeAssignment(variable_sym.unwrap(), attr, expression));
+                match lhs_pair.as_rule() {
+                    Rule::identifier => {
+                        let identifier = Statement::obtain_identifier(
+                            lhs_pair, env, expression.data_type().unwrap())?;
+                        match identifier {
+                            Symbol::Variable(var) => {
+                                Ok(Statement::Assignment(Rc::clone(&var), expression))
+                            }
+                            Symbol::Constant(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                                Err(CompilationError::new(
+                                    0, 0, "".to_string(),
+                                    format!("Attribution to constant field.")))
+                            }
+                        }
+                    }
+                    Rule::attribute => {
+                        let var_attr_pair = Statement::obtain_attribute(
+                            lhs_pair, env, expression.data_type())?;
+                        Ok(Statement::AttributeAssignment(var_attr_pair.0, var_attr_pair.1, expression))
+                    }
+                    _ => unreachable!("Unknown assignment LHS")
                 }
-
-                if let None = identifier_sym {
-                    env.declare(identifier_str, expression.data_type().unwrap());
-                }
-                if let Some(Symbol::Variable(variable_sym)) = env.get(identifier_str) {
-                    return Ok(Statement::Assignment(Rc::clone(variable_sym), expression));
-                } else { unreachable!() }
             }
             Rule::function => {
-                let function = Function::from(rhs_pair, identifier_str.to_string())?;
-                let function_rc = env.add_function(function);
-                return Ok(Statement::FunctionDef(function_rc));
+                match lhs_pair.as_rule() {
+                    Rule::identifier => {
+                        let identifier_str = lhs_pair.as_str().to_string();
+                        let function = Function::from(rhs_pair, identifier_str.to_string())?;
+                        let function_rc = env.add_function(function);
+                        Ok(Statement::FunctionDef(function_rc))
+                    }
+                    Rule::attribute => {
+                        Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            format!("Direct function assignment (unimplemented).")))
+                    }
+                    _ => unreachable!("Unknown assignment LHS")
+                }
             }
             Rule::struct_decl => {
+                let identifier_str = lhs_pair.as_str().to_string();
                 let struct_decl = StructDecl::from(rhs_pair, identifier_str.to_string())?;
                 let struct_decl_rc = env.add_struct_def(struct_decl);
-                return Ok(Statement::StructDecl(struct_decl_rc));
+                Ok(Statement::StructDecl(struct_decl_rc))
             }
             Rule::struct_def => {
                 let struct_def = StructDef::from(rhs_pair, env)?;
                 let struct_decl = struct_def.get_declaration();
-                env.declare(identifier_str, DataType::Struct(struct_decl));
                 let struct_def_rc = Rc::new(struct_def);
-                if let Some(Symbol::Variable(variable)) = env.get(identifier_str) {
-                    return Ok(Statement::StructDef(Rc::clone(variable), struct_def_rc));
-                } else {
-                    unreachable!()
+
+                match lhs_pair.as_rule() {
+                    Rule::identifier => {
+                        let identifier = Statement::obtain_identifier(lhs_pair, env, DataType::Struct(struct_decl))?;
+                        match identifier {
+                            Symbol::Variable(var) => {
+                                Ok(Statement::StructDef(Rc::clone(&var), struct_def_rc))
+                            }
+                            Symbol::Constant(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                                Err(CompilationError::new(
+                                    0, 0, "".to_string(),
+                                    format!("Attribution to constant field.")))
+                            }
+                        }
+                    }
+                    Rule::attribute => {
+                        unimplemented!("Direct structure assignment to attribute is not currenly implemented.");
+                    }
+                    _ => unreachable!()
                 }
             }
             _ => unreachable!()
+        }
+    }
+
+    fn obtain_identifier(pair: Pair<Rule>, env: &mut Environment, dtype: DataType)
+                         -> Result<(Symbol), CompilationError> {
+        // TODO  validate data type
+        let identifier_str = pair.as_str();
+        if let None = env.get(identifier_str) {
+            env.touch(identifier_str);
+        }
+        env.declare(identifier_str, dtype);
+
+        if let Some(symbol) = env.get(identifier_str) {
+            Ok(symbol.clone())
+        } else {
+            unreachable!();
+        }
+    }
+
+    fn obtain_attribute(pair: Pair<Rule>, env: &mut Environment, dtype: Option<DataType>)
+                        -> Result<(Rc<Variable>, Rc<Attribute>), CompilationError> {
+        // TODO  validate data type
+        let mut inner = pair.into_inner();
+        let identifier_str = inner.next().unwrap().as_str();
+        let attribute_str = inner.next().unwrap().as_str();
+
+        if let Some(Symbol::Variable(var)) = env.get(identifier_str) {
+            let variable = Rc::clone(&var);
+            if let Some(DataType::Struct(decl)) = variable.data_type() {
+                if let Some(attr) = decl.get_attribute(attribute_str) {
+                    Ok((variable, attr))
+                } else {
+                    Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("Attribute {} not found", attribute_str)))
+                }
+            } else {
+                Err(CompilationError::new(
+                    0, 0, "".to_string(),
+                    "Attribution to field of non-struct".to_string()))
+            }
+        } else {
+            Err(CompilationError::new(
+                0, 0, "".to_string(),
+                "Attribution to field of non-struct".to_string()))
         }
     }
 }
