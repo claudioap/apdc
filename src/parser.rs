@@ -91,39 +91,7 @@ impl Statement {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
             Rule::assignment => {
-                let mut inner_rules = pair.into_inner();
-                let mut pair = inner_rules.next().unwrap();
-                let identifier = pair.as_str().to_string();
-                pair = inner_rules.next().unwrap();
-                match pair.as_rule() {
-                    Rule::expression => {
-                        let expression = Expression::from(pair, env)?;
-                        env.declare(identifier.as_str(), expression.data_type().unwrap());
-                        return Ok(Statement::Assignment(identifier, expression));
-                    }
-                    Rule::function => {
-                        let function = Function::from(pair, identifier)?;
-                        let function_rc = env.add_function(function);
-                        return Ok(Statement::FunctionDef(function_rc));
-                    }
-                    Rule::struct_decl => {
-                        let struct_decl = StructDecl::from(pair, identifier)?;
-                        let struct_decl_rc = env.add_struct_def(struct_decl);
-                        return Ok(Statement::StructDecl(struct_decl_rc));
-                    }
-                    Rule::struct_def => {
-                        let struct_def = StructDef::from(pair, env)?;
-                        let struct_decl = struct_def.get_declaration();
-                        env.declare(identifier.as_str(), DataType::Struct(struct_decl));
-                        let struct_def_rc = Rc::new(struct_def);
-                        if let Some(Symbol::Variable(variable)) = env.get(identifier.as_str()) {
-                            return Ok(Statement::StructDef(Rc::clone(variable), struct_def_rc));
-                        } else {
-                            unreachable!()
-                        }
-                    }
-                    _ => unreachable!()
-                }
+                Statement::parse_assignment(pair, env)
             }
             Rule::function_call => {
                 let call = Function::parse_call(pair, env);
@@ -154,6 +122,103 @@ impl Statement {
                 Ok(Statement::Cycle(cycle))
             }
             _ => unreachable!("{}", pair)
+        }
+    }
+
+    fn parse_assignment(pair: Pair<Rule>, env: &mut Environment) -> Result<Statement, CompilationError> {
+        let mut inner_rules = pair.into_inner();
+        let lhs_pair = inner_rules.next().unwrap();
+
+        let mut identifier_sym: Option<&Symbol> = None;
+        let mut variable_sym: Option<Rc<Variable>> = None;
+        let mut attribute: Option<Rc<Attribute>> = None;
+
+        let identifier_str: &str;
+
+        match lhs_pair.as_rule() {
+            Rule::identifier => {
+                identifier_str = lhs_pair.as_str();
+                if let Some(symbol) = env.get(identifier_str) {
+                    match symbol {
+                        Symbol::Variable(_) | Symbol::Constant(_) => identifier_sym = Some(symbol),
+                        _ => {
+                            return Err(
+                                CompilationError::new(
+                                    0, 0, "".to_string(),
+                                    "Attribution to constant field.".to_string()));
+                        }
+                    }
+                }
+            }
+            Rule::attribute => {
+                let mut inner = lhs_pair.into_inner();
+                identifier_str = inner.next().unwrap().as_str();
+                let attribute_str = inner.next().unwrap().as_str();
+
+                if let Some(Symbol::Variable(var)) = env.get(identifier_str) {
+                    variable_sym = Some(Rc::clone(var));
+
+                    if let Some(DataType::Struct(decl)) = var.data_type() {
+                        if let Some(attr) = decl.get_attribute(attribute_str) {
+                            attribute = Some(attr)
+                        } else {
+                            return Err(CompilationError::new(
+                                0, 0, "".to_string(),
+                                format!("Attribute {} not found", attribute_str)));
+                        }
+                    } else {
+                        return Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            "Attribution to field of non-struct".to_string()));
+                    }
+                } else {
+                    return Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        "Attribution to field of non-struct".to_string()));
+                }
+            }
+            _ => unreachable!("Unknown assignment LHS")
+        }
+
+        let rhs_pair = inner_rules.next().unwrap();
+        match rhs_pair.as_rule() {
+            Rule::expression => {
+                let expression = Expression::from(rhs_pair, env)?;
+
+                if let Some(attr) = attribute {
+                    attr.set_data_type(expression.data_type());
+                    return Ok(Statement::AttributeAssignment(variable_sym.unwrap(), attr, expression));
+                }
+
+                if let None = identifier_sym {
+                    env.declare(identifier_str, expression.data_type().unwrap());
+                }
+                if let Some(Symbol::Variable(variable_sym)) = env.get(identifier_str) {
+                    return Ok(Statement::Assignment(Rc::clone(variable_sym), expression));
+                } else { unreachable!() }
+            }
+            Rule::function => {
+                let function = Function::from(rhs_pair, identifier_str.to_string())?;
+                let function_rc = env.add_function(function);
+                return Ok(Statement::FunctionDef(function_rc));
+            }
+            Rule::struct_decl => {
+                let struct_decl = StructDecl::from(rhs_pair, identifier_str.to_string())?;
+                let struct_decl_rc = env.add_struct_def(struct_decl);
+                return Ok(Statement::StructDecl(struct_decl_rc));
+            }
+            Rule::struct_def => {
+                let struct_def = StructDef::from(rhs_pair, env)?;
+                let struct_decl = struct_def.get_declaration();
+                env.declare(identifier_str, DataType::Struct(struct_decl));
+                let struct_def_rc = Rc::new(struct_def);
+                if let Some(Symbol::Variable(variable)) = env.get(identifier_str) {
+                    return Ok(Statement::StructDef(Rc::clone(variable), struct_def_rc));
+                } else {
+                    unreachable!()
+                }
+            }
+            _ => unreachable!()
         }
     }
 }
@@ -243,7 +308,7 @@ impl Expression {
                                 format!("Failed to resolve symbol {}", pair.as_str())))
                         }
                     }
-                    Rule::attribute_access => {
+                    Rule::attribute => {
                         let mut inner = pair.into_inner();
                         let object_name = inner.next().unwrap().as_str();
                         let attr_name = inner.next().unwrap().as_str();

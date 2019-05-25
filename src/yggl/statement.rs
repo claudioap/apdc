@@ -13,7 +13,7 @@ use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 #[allow(dead_code)]
 pub enum Statement {
     // TODO String -> Rc<Variable>, Constants?!?
-    Assignment(String, Expression),
+    Assignment(Rc<Variable>, Expression),
     FunctionDef(Rc<Function>),
     Call(FunctionCall),
     Conditional(Conditional),
@@ -33,9 +33,9 @@ pub enum Statement {
 impl Statement {
     pub fn run(&self, env: &mut Environment) {
         match self {
-            &Statement::Assignment(ref identifier, ref exp) => {
+            &Statement::Assignment(ref var, ref exp) => {
                 let evaluation = exp.eval(env);
-                let _ = env.define(identifier.as_str(), evaluation);
+                let _ = env.define(var.get_identifier(), evaluation);
             }
             &Statement::Print(ref expressions) => {
                 for expression in expressions.iter() {

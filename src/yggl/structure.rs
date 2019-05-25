@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::yggl::data::{DataType, Constant};
 use crate::yggl::environment::Variable;
 use crate::yggl::expression::Expression;
+use std::cell::RefCell;
 
 #[allow(dead_code)]
 pub enum Attribute {
@@ -14,19 +15,19 @@ pub enum Attribute {
 
 pub struct LocalAttribute {
     name: String,
-    dtype: Option<DataType>,
+    dtype: RefCell<Option<DataType>>,
 }
 
 pub struct ForeignAttribute {
     name: String,
-    dtype: Option<DataType>,
+    dtype: RefCell<Option<DataType>>,
     _lambda: fn(Vec<Expression>) -> Option<Constant>,
 }
 
 
 impl Attribute {
     pub fn new(name: String, dtype: Option<DataType>) -> Attribute {
-        Attribute::Local(LocalAttribute { name, dtype })
+        Attribute::Local(LocalAttribute { name, dtype: RefCell::new(dtype) })
     }
 
     pub fn get_name(&self) -> &str {
@@ -38,8 +39,27 @@ impl Attribute {
 
     pub fn data_type(&self) -> Option<DataType> {
         match self {
-            Attribute::Local(local) => local.dtype.clone(),
-            Attribute::Foreign(foreign) => foreign.dtype.clone()
+            Attribute::Local(local) => local.dtype.borrow().clone(),
+            Attribute::Foreign(foreign) => foreign.dtype.borrow().clone()
+        }
+    }
+
+    pub fn set_data_type(&self, dtype: Option<DataType>) {
+        match self {
+            Attribute::Local(local) => {
+                let current = local.dtype.borrow().clone();
+                if current != None {
+                    if current != dtype {
+                        panic!("Changed attribute datatype");
+                    }
+                    if dtype == None {
+                        panic!("Nullified non-null attribute datatype.")
+                    }
+                }
+
+                local.dtype.replace(dtype);
+            }
+            _ => { panic!("Cannot set the data type of a foreign attribute.") }
         }
     }
 
@@ -70,7 +90,7 @@ impl fmt::Display for Attribute {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Attribute::Local(attribute) => {
-                if let Some(dtype) = &attribute.dtype {
+                if let Some(dtype) = &attribute.dtype.borrow().clone() {
                     write!(f, "{} {}", dtype.transpile(), attribute.name)
                 } else {
                     write!(f, "unknown {}", attribute.name)
