@@ -1,6 +1,6 @@
 /* BUILT IN DEFINITIONS */
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+COMMENT = _{ ("/*" ~ (!"*/" ~ ANY)* ~ "*/"| "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE) }
 
 /* ########## DATA TYPES ########## */
 number = @{

@@ -56,6 +56,7 @@ impl Program {
             if let Statement::Assignment(ref var, _) = statement {
                 if !var.is_declared() {
                     declarations.push((index, Statement::Declaration(Rc::clone(var))));
+                    var.set_declared();
                 }
             }
             index += 1;
