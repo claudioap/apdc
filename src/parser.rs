@@ -1,4 +1,3 @@
-use std::collections::linked_list::LinkedList;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
@@ -294,8 +293,8 @@ impl Cycle {
     }
 }
 
-/// Define the precedence climber for an Expression.
-/// This tells a parser which operations to parse first in an unparsed expression.
+// Define the precedence climber for an Expression.
+// This tells a parser which operations to parse first in an unparsed expression.
 lazy_static! {
     static ref BINOP_CLIMBER: PrecClimber<Rule> = {
         use Rule::*;
@@ -482,7 +481,7 @@ impl Function {
     pub fn from(pair: Pair<Rule>, name: String)
                 -> Result<Function, CompilationError> {
         let mut parameters: Option<Vec<Rc<Variable>>> = Option::None;
-        let mut statements: LinkedList<Statement> = LinkedList::new();
+        let mut statements = vec![];
         let mut function_env = Environment::new();
         for pair in pair.into_inner() {
             match pair.as_rule() {
@@ -491,7 +490,7 @@ impl Function {
                 }
                 Rule::statement => {
                     let statement = Statement::from(pair, &mut function_env)?;
-                    statements.push_back(statement);
+                    statements.push(statement);
                 }
                 _ => unreachable!()
             }
@@ -515,6 +514,7 @@ impl Function {
         let mut parameters = vec!();
         for parameter_pair in pair.into_inner() {
             let parameter = env.touch(parameter_pair.as_str());
+            parameter.set_declared();
             parameters.push(parameter);
         }
         parameters

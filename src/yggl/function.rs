@@ -1,9 +1,9 @@
-use std::collections::LinkedList;
 use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::data::{DataType, Evaluable, Constant};
 use crate::yggl::expression::Expression;
+use crate::yggl::anotation;
 use crate::parser::CompilationError;
 
 /// The concept of a function, which is treated like subprogram within the program.
@@ -13,15 +13,17 @@ pub struct Function {
     name: String,
     parameters: Vec<Rc<Variable>>,
     environment: Environment,
-    statements: LinkedList<Statement>,
+    statements: Vec<Statement>,
     return_type: Option<DataType>,
 }
 
 #[allow(dead_code)]
 impl Function {
     pub fn new(environment: Environment, name: String, parameters: Vec<Rc<Variable>>,
-               statements: LinkedList<Statement>) -> Result<Function, CompilationError> {
+               mut statements: Vec<Statement>) -> Result<Function, CompilationError> {
         let dtype = Function::determine_return(&statements)?;
+        anotation::propagate_types(&statements);
+        anotation::insert_declarations(&mut statements);
         Ok(Function {
             name,
             parameters,
@@ -39,7 +41,7 @@ impl Function {
         self.return_type.clone()
     }
 
-    fn determine_return(statements: &LinkedList<Statement>) -> Result<Option<DataType>, CompilationError> {
+    fn determine_return(statements: &Vec<Statement>) -> Result<Option<DataType>, CompilationError> {
         let mut dtype: Option<DataType> = None;
         for statement in statements {
             if let Statement::Return(ref evaluable) = statement {
@@ -98,6 +100,7 @@ impl Function {
     pub fn env_dump(&self) {
         self.environment.dump();
     }
+
 }
 
 #[allow(dead_code)]
