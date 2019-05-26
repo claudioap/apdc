@@ -13,15 +13,16 @@ use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 #[allow(dead_code)]
 pub enum Statement {
     // TODO String -> Rc<Variable>, Constants?!?
+    Declaration(Rc<Variable>),
     Assignment(Rc<Variable>, Expression),
+    StructDecl(Rc<StructDecl>),
+    StructDef(Rc<Variable>, Rc<StructDef>),
     FunctionDef(Rc<Function>),
     Call(FunctionCall),
     Conditional(Conditional),
     Cycle(Cycle),
     Print(Vec<Expression>),
     Return(Rc<Variable>),
-    StructDecl(Rc<StructDecl>),
-    StructDef(Rc<Variable>, Rc<StructDef>),
     AttributeAssignment(Rc<Variable>, Rc<Attribute>, Expression),
 //    ProtocolDef(),
 //    TimerInit(),
@@ -48,8 +49,18 @@ impl Statement {
 
     pub fn transpile(&self, env: &Environment) -> String {
         match self {
+            &Statement::Declaration(ref var) => {
+                match var.get_type().unwrap() {
+                    DataType::Struct(_) => {
+                        format!("{}* {};", var.get_type().unwrap().transpile(), var.get_identifier())
+                    }
+                    _ => {
+                        format!("{} {};", var.get_type().unwrap().transpile(), var.get_identifier())
+                    }
+                }
+            }
             &Statement::Assignment(ref identifier, ref exp) => {
-                format!("{} = {};", identifier, exp.transpile(env))
+                format!("{} = {};", identifier.get_identifier(), exp.transpile(env))
             }
             &Statement::Print(ref expressions) => {
                 let mut format_string = String::new();
@@ -87,7 +98,7 @@ impl Statement {
             &Statement::Conditional(ref conditional) => conditional.transpile(env),
             &Statement::Cycle(ref cycle) => cycle.transpile(env),
             &Statement::StructDef(ref var, ref definition) => {
-                format!("struct {} {};", definition.get_declaration().get_name(), var.get_identifier())
+                format!("struct {}* {};", definition.get_declaration().get_name(), var.get_identifier())
             }
             _ => { "".to_string() }
         }

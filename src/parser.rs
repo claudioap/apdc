@@ -82,6 +82,7 @@ impl Program {
                 _ => unimplemented!()
             }
         }
+        program.annotate();
         Ok(program)
     }
 }
@@ -233,6 +234,7 @@ impl Statement {
             let variable = Rc::clone(&var);
             if let Some(DataType::Struct(decl)) = variable.data_type() {
                 if let Some(attr) = decl.get_attribute(attribute_str) {
+                    attr.set_data_type(dtype);
                     Ok((variable, attr))
                 } else {
                     Err(CompilationError::new(

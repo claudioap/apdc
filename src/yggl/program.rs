@@ -1,7 +1,8 @@
-use std::collections::{LinkedList, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use crate::yggl::environment::Environment;
 use crate::yggl::statement::Statement;
+use std::rc::Rc;
 
 
 /// A program is the AST root.
@@ -12,7 +13,7 @@ use crate::yggl::statement::Statement;
 #[allow(dead_code)]
 pub struct Program {
     environment: Environment,
-    statements: LinkedList<Statement>,
+    statements: Vec<Statement>,
     includes: HashSet<Include>,
 }
 
@@ -21,13 +22,50 @@ impl Program {
     pub fn new() -> Program {
         Program {
             environment: Environment::new(),
-            statements: LinkedList::new(),
+            statements: vec![],
             includes: HashSet::new(),
         }
     }
 
     pub fn add_statement(&mut self, statement: Statement) {
-        self.statements.push_back(statement);
+        self.statements.push(statement);
+    }
+
+    pub fn annotate(&mut self) {
+        loop {
+            for statement in &self.statements {
+                match statement {
+                    Statement::Assignment(ref variable, ref exp) => {
+                        let dtype = exp.data_type();
+                        if dtype.is_none() {
+                            continue;
+                        }
+                        if !variable.has_type() {
+                            variable.set_type(dtype.unwrap());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            break;
+        }
+
+        let mut index = 0;
+        let mut declarations = vec![];
+        for statement in &mut self.statements {
+            if let Statement::Assignment(ref var, _) = statement {
+                if !var.is_declared() {
+                    declarations.push((index, Statement::Declaration(Rc::clone(var))));
+                }
+            }
+            index += 1;
+        }
+
+        let mut offset = 0;
+        for declaration in declarations {
+            self.statements.insert(declaration.0 + offset, declaration.1);
+            offset += 1;
+        }
     }
 
     pub fn run(&mut self) {

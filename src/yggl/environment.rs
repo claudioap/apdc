@@ -131,6 +131,12 @@ impl Environment {
     pub fn require_include(&mut self, include: Include) {
         self.includes.insert(include);
     }
+
+    pub fn dump(&self) {
+        for scope in &self.scopes {
+            scope.dump();
+        }
+    }
 }
 
 
@@ -153,6 +159,7 @@ impl Scope {
         } else {
             let var = Rc::new(Variable {
                 id: identifier.to_string(),
+                declared: RefCell::new(false),
                 data_type: RefCell::new(None),
                 content: RefCell::new(None),
             });
@@ -178,6 +185,7 @@ impl Scope {
         } else {
             let var = Rc::new(Variable {
                 id: identifier.to_string(),
+                declared: RefCell::new(false),
                 data_type: RefCell::new(Some(dtype)),
                 content: RefCell::new(None),
             });
@@ -205,6 +213,7 @@ impl Scope {
         } else {
             let var = Rc::new(Variable {
                 id: identifier.to_string(),
+                declared: RefCell::new(false),
                 data_type: RefCell::new(Some(constant.data_type())),
                 content: RefCell::new(Some(constant)),
             });
@@ -249,6 +258,21 @@ impl Scope {
             None
         }
     }
+
+    pub fn dump(&self) {
+        for symbol in self.symbols.values() {
+            match symbol {
+                Symbol::Variable(ref var) => {
+                    if let Some(dtype) = var.get_type() {
+                        println!("{} {}", dtype.transpile(), var.get_identifier());
+                    } else {
+                        println!("Unknown {}", var.get_identifier());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 /// Variables are data values that belong to the environment
@@ -257,6 +281,7 @@ impl Scope {
 #[derive(Clone)]
 pub struct Variable {
     id: String,
+    declared: RefCell<bool>,
     data_type: RefCell<Option<DataType>>,
     content: RefCell<Option<Constant>>,
 }
@@ -267,12 +292,29 @@ impl Variable {
         self.id.as_str()
     }
 
+    pub fn has_type(&self) -> bool {
+        self.data_type.borrow().is_some()
+    }
+
+
     pub fn get_type(&self) -> Option<DataType> {
         self.data_type.borrow().clone()
     }
 
+    pub fn set_type(&self, dtype: DataType) {
+        self.data_type.replace(Some(dtype));
+    }
+
     pub fn get_content(&self) -> Option<Constant> {
         self.content.borrow().clone()
+    }
+
+    pub fn is_declared(&self) -> bool {
+        self.declared.borrow().clone()
+    }
+
+    pub fn set_declared(&self) {
+        self.declared.replace(true);
     }
 }
 

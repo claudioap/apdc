@@ -65,8 +65,8 @@ impl Function {
         result.reserve(1024 * 10); // Reserve 10 KB to prevent further allocations
         result.push_str(format!("{} {}(", rtype, self.name).as_str());
         for parameter in &self.parameters {
-            let dtype = parameter.get_type().expect("Parameter type unknown");
             let identifier = parameter.get_identifier();
+            let dtype = parameter.get_type().expect(format!("Parameter {} unknown type", identifier).as_str());
             result.push_str(dtype.transpile().as_str());
             result.push(' ');
             result.push_str(identifier);
@@ -93,6 +93,10 @@ impl Function {
 
     pub fn call(&self) -> Option<Constant> {
         None
+    }
+
+    pub fn env_dump(&self) {
+        self.environment.dump();
     }
 }
 
