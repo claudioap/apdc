@@ -1,7 +1,7 @@
 use std::{fmt, ops};
 use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
-use crate::yggl::data::{Constant, DataType, Evaluable};
+use crate::yggl::data::{Constant, DataType};
 use crate::yggl::structure::Attribute;
 
 /// Expressions represent portions of code that evaluate to values
@@ -20,9 +20,9 @@ impl Expression {
         match self {
             &Expression::Constant(ref c) => c.clone(),
             &Expression::Variable(ref var) => {
-                if let Some(c) = var.eval(){
+                if let Some(c) = var.content() {
                     c
-                }else {
+                } else {
                     panic!("Variable evaluation didn't return a constant")
                 }
             }
@@ -90,7 +90,7 @@ impl Expression {
                         lexp.eval(environment).truth_value() || rexp.eval(environment).truth_value(),
                 }
             }
-            &Expression::AttributeAccess(_, _) => {unimplemented!()}
+            &Expression::AttributeAccess(_, _) => { unimplemented!() }
         }
     }
 
@@ -119,7 +119,6 @@ impl Expression {
             }
         }
     }
-
 }
 
 impl fmt::Display for Expression {

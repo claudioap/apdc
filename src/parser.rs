@@ -7,7 +7,7 @@ use pest::iterators::Pairs;
 use pest::error::Error;
 use pest::error::LineColLocation::*;
 use pest::prec_climber::*;
-use crate::yggl::data::{Constant, DataType, Evaluable};
+use crate::yggl::data::{Constant, DataType};
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
 use crate::yggl::program::{Program, Include};
@@ -123,7 +123,7 @@ impl Statement {
             }
             Rule::declaration => {
                 let identifier = pair.as_str();
-                Ok(Statement::Declaration(env.touch(identifier)))
+                Ok(Statement::Declaration(env.declare(identifier)))
             }
             _ => unreachable!("{}", pair)
         }
@@ -181,7 +181,7 @@ impl Statement {
             Rule::struct_decl => {
                 let identifier_str = lhs_pair.as_str().to_string();
                 let struct_decl = StructDecl::from(rhs_pair, identifier_str.to_string())?;
-                let struct_decl_rc = env.add_struct_def(struct_decl);
+                let struct_decl_rc = env.add_struct_decl(struct_decl);
                 Ok(Statement::StructDecl(struct_decl_rc))
             }
             Rule::struct_def => {
@@ -213,16 +213,27 @@ impl Statement {
         }
     }
 
-    fn obtain_identifier(pair: Pair<Rule>, env: &mut Environment, dtype: DataType)
+    fn obtain_identifier(pair: Pair<Rule>, env: &mut Environment, expected_dtype: DataType)
                          -> Result<(Symbol), CompilationError> {
         // TODO  validate data type
-        let identifier_str = pair.as_str();
-        if let None = env.get(identifier_str) {
-            env.touch(identifier_str);
-        }
-        env.declare(identifier_str, dtype);
+        let identifier = pair.as_str();
 
-        if let Some(symbol) = env.get(identifier_str) {
+        let var = match env.get(identifier) {
+            Some(sym) => {
+                if let Symbol::Variable(v) = sym {
+                    v
+                } else {
+                    return Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("Redeclaring "),
+                    ));
+                }
+            }
+            None => env.declare(identifier),
+        };
+        var.set_type(expected_dtype);
+
+        if let Some(symbol) = env.get(identifier) {
             Ok(symbol.clone())
         } else {
             unreachable!();
@@ -351,7 +362,7 @@ impl Expression {
                         let attr_name = inner.next().unwrap().as_str();
                         if let Some(symbol) = env.get(object_name) {
                             let var = match symbol {
-                                Symbol::Variable(var) => Rc::clone(var),
+                                Symbol::Variable(var) => var,
                                 _ => return Err(
                                     CompilationError::new(
                                         0, 0, "".to_string(),
@@ -456,7 +467,7 @@ impl DataType {
                 let identifier = pair.as_str();
                 if let Some(symbol) = env.get(identifier) {
                     if let Symbol::StructDecl(decl) = symbol {
-                        Ok(DataType::Struct(Rc::clone(decl)))
+                        Ok(DataType::Struct(decl))
                     } else {
                         Err(CompilationError::new(
                             0, 0, "".to_string(),
@@ -566,7 +577,7 @@ impl Function {
         for parameter_pair in pair.into_inner() {
             match parameter_pair.as_rule() {
                 Rule::identifier => {
-                    let parameter = env.touch(parameter_pair.as_str());
+                    let parameter = env.declare(parameter_pair.as_str());
                     parameter.set_declared();
                     parameters.push(parameter);
                 }
@@ -574,7 +585,8 @@ impl Function {
                     let mut inner = parameter_pair.into_inner();
                     let identifier = inner.next().unwrap().as_str();
                     let dtype = DataType::from(inner.next().unwrap(), env)?;
-                    let parameter = env.declare(identifier, dtype);
+                    let parameter = env.declare(identifier);
+                    parameter.set_type(dtype);
                     parameter.set_declared();
                     parameters.push(parameter);
                 }
@@ -635,7 +647,7 @@ impl StructDef {
         match env.get(identifier) {
             Some(Symbol::StructDecl(declaration)) => {
                 // TODO attribute initialization
-                Ok(StructDef::new(Rc::clone(declaration), HashMap::new()))
+                Ok(StructDef::new(declaration, HashMap::new()))
             }
             _ => Err(CompilationError::new(
                 0, 0,

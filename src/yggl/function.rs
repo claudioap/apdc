@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
-use crate::yggl::data::{DataType, Evaluable, Constant};
+use crate::yggl::data::{DataType, Constant};
 use crate::yggl::expression::Expression;
 use crate::yggl::annotation;
 use crate::parser::CompilationError;
@@ -68,7 +68,7 @@ impl Function {
         result.push_str(format!("{} {}(", rtype, self.name).as_str());
         for parameter in &self.parameters {
             let identifier = parameter.get_identifier();
-            let dtype = parameter.get_type().expect(format!("Parameter {} unknown type", identifier).as_str());
+            let dtype = parameter.data_type().expect(format!("Parameter {} unknown type", identifier).as_str());
             result.push_str(dtype.transpile().as_str());
             result.push(' ');
             result.push_str(identifier);
@@ -98,7 +98,7 @@ impl Function {
     }
 
     pub fn env_dump(&self) {
-        self.environment.dump();
+        self.environment.print_snapshot();
     }
 }
 

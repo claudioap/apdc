@@ -126,13 +126,13 @@ impl fmt::Display for Constant {
     }
 }
 
-impl std::cmp::PartialEq for Constant{
+impl std::cmp::PartialEq for Constant {
     fn eq(&self, _other: &Constant) -> bool {
         unimplemented!()
     }
 }
 
-impl std::cmp::PartialOrd for Constant{
+impl std::cmp::PartialOrd for Constant {
     fn partial_cmp(&self, _other: &Constant) -> Option<Ordering> {
         unimplemented!()
     }

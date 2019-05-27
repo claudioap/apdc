@@ -1,7 +1,7 @@
 use std::string::ToString;
 use std::fmt;
 use std::rc::Rc;
-use crate::yggl::data::{DataType, Evaluable};
+use crate::yggl::data::DataType;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::expression::Expression;
 use crate::yggl::function::{FunctionCall, Function};
@@ -37,7 +37,7 @@ impl Statement {
         match self {
             &Statement::Assignment(ref var, ref exp) => {
                 let evaluation = exp.eval(env);
-                let _ = env.define(var.get_identifier(), evaluation);
+                var.set_content(evaluation);
             }
             &Statement::Print(ref expressions) => {
                 for expression in expressions.iter() {
@@ -51,12 +51,12 @@ impl Statement {
     pub fn transpile(&self, env: &Environment) -> String {
         match self {
             &Statement::Declaration(ref var) => {
-                match var.get_type().unwrap() {
+                match var.data_type().unwrap() {
                     DataType::Struct(_) => {
-                        format!("{}* {};", var.get_type().unwrap().transpile(), var.get_identifier())
+                        format!("{}* {};", var.data_type().unwrap().transpile(), var.get_identifier())
                     }
                     _ => {
-                        format!("{} {};", var.get_type().unwrap().transpile(), var.get_identifier())
+                        format!("{} {};", var.data_type().unwrap().transpile(), var.get_identifier())
                     }
                 }
             }

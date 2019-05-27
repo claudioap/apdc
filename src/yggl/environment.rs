@@ -1,157 +1,164 @@
-use std::collections::{HashMap, LinkedList, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::yggl::data::{Constant, DataType, Evaluable};
+use crate::yggl::data::{Constant, DataType};
 use crate::yggl::function::Function;
 use crate::yggl::program::Include;
 use crate::yggl::structure::StructDecl;
 
 /// A program has a set of environments, which hold variable data.
+/// A scope is a slice of the current environment.
+/// Scopes can be stacked on top of each other, and variable resolution is done as a LIFO.
 pub struct Environment {
     // Environment symbols are static
-    symbols: HashMap<String, Symbol>,
-    scopes: LinkedList<Scope>,
+    scopes: VecDeque<HashMap<String, Symbol>>,
     includes: HashSet<Include>,
 }
 
 #[allow(dead_code)]
 impl Environment {
     pub fn new() -> Environment {
-        let mut scopes = LinkedList::new();
-        let scope = Scope::new();
+        let mut scopes = VecDeque::new();
+        let scope = HashMap::new();
         scopes.push_back(scope);
-        Environment { scopes, symbols: HashMap::new(), includes: HashSet::new() }
+        Environment { scopes, includes: HashSet::new() }
     }
 
+    /// Adds a scope to the environment stack
     pub fn push_scope(&mut self) {
-        let scope = Scope::new();
-        self.scopes.push_front(scope);
+        let scope = HashMap::new();
+        self.scopes.push_back(scope);
     }
 
+    /// Removes a scope from the environment stack
     pub fn pop_scope(&mut self) {
         if self.scopes.len() == 1 {
             panic!("Attempted to remove last scope from the environment.")
         }
-        self.scopes.pop_front();
+        self.scopes.pop_back();
     }
 
-    fn get_current_scope(&mut self) -> &mut Scope {
-        self.scopes.front_mut().unwrap()
+    /// Obtains the current scope
+    fn get_current_scope(&mut self) -> &mut HashMap<String, Symbol> {
+        self.scopes.back_mut().unwrap()
     }
 
-    fn get_definition_scope_mut(&mut self, identifier: &str) -> Option<&mut Scope> {
-        for scope in &mut self.scopes {
-            if scope.is_defined(identifier) {
-                return Some(scope);
-            }
-        }
-        None
-    }
-
-    fn get_definition_scope(&self, identifier: &str) -> Option<&Scope> {
+    /// Finds the first scope where an identifier is defined (LIFO)
+    fn get_definition_scope(&self, identifier: &str) -> Option<&HashMap<String, Symbol>> {
         for scope in &self.scopes {
-            if scope.is_defined(identifier) {
+            if scope.contains_key(identifier) {
                 return Some(scope);
             }
         }
         None
     }
 
-    pub fn touch(&mut self, identifier: &str) -> Rc<Variable> {
-        self.get_current_scope().touch(identifier)
-    }
-
-    pub fn declare(&mut self, identifier: &str, dtype: DataType) -> Rc<Variable> {
-        self.get_current_scope().declare(identifier, dtype)
-    }
-
-    pub fn define(&mut self, identifier: &str, constant: Constant) -> Rc<Variable> {
-        match self.get_definition_scope_mut(identifier) {
-            Some(scope) => scope.define(identifier, constant),
-            None => self.get_current_scope().define(identifier, constant)
+    /// Declares a variable of a an unknown type in the current scope
+    /// (it is up to the receiver to set the type, but possibly it shouldn't )
+    pub fn declare(&mut self, identifier: &str) -> Rc<Variable> {
+        let scope = self.get_current_scope();
+        if scope.contains_key(identifier) {
+            panic!("Declared same variable ({}) twice in the same scope.", identifier);
+        } else {
+            let var = Rc::new(Variable {
+                id: identifier.to_string(),
+                declared: RefCell::new(false),
+                data_type: RefCell::new(None),
+                content: RefCell::new(None),
+            });
+            scope.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
+            var
         }
     }
 
-    pub fn get_functions(&self) -> Vec<&Rc<Function>> {
+    /// Obtains every function that is present in this environment
+    pub fn get_functions(&self) -> Vec<Rc<Function>> {
         let mut set = vec!();
-        for (_, symbol) in &self.symbols {
-            if let Symbol::Function(function) = symbol {
-                set.push(function);
+        for symbol in self.scopes.front().unwrap().values() {
+            if let Symbol::Function(ref function) = symbol {
+                set.push(Rc::clone(function));
             }
         }
         set
     }
 
-    pub fn get_struct_defs(&self) -> Vec<&Rc<StructDecl>> {
+    /// Obtains every structure definition that is present in this environment
+    pub fn get_struct_defs(&self) -> Vec<Rc<StructDecl>> {
         let mut set = vec!();
-        for (_, symbol) in &self.symbols {
-            if let Symbol::StructDecl(function) = symbol {
-                set.push(function);
+        for symbol in self.scopes.front().unwrap().values() {
+            if let Symbol::StructDecl(ref decl) = symbol {
+                set.push(Rc::clone(decl));
             }
         }
         set
     }
 
+    /// Gets every static symbol into a vector
     pub fn get_static_symbols(&self) -> Vec<Symbol> {
         let mut symbols = vec!();
-        for symbol in self.symbols.values() {
+        for symbol in self.scopes.front().unwrap().values() {
             symbols.push(symbol.clone());
         }
         symbols
     }
 
+    /// (Deprecated) Gets every include that was required in this environment
     pub fn get_includes(&self) -> &HashSet<Include> {
         &self.includes
     }
 
-    pub fn get(&self, identifier: &str) -> Option<&Symbol> {
+    /// Gets a symbol by its identifier
+    pub fn get(&self, identifier: &str) -> Option<Symbol> {
         match self.get_definition_scope(identifier) {
-            Some(scope) => scope.get(identifier),
-            None => match self.symbols.get(identifier) {
-                Some(symbol) => Some(symbol),
+            Some(scope) => match scope.get(identifier) {
+                Some(symbol) => { Some(symbol.clone()) }
                 None => None
-            }
-        }
-    }
-
-    pub fn eval(&self, identifier: &str) -> Option<Symbol> {
-        match self.get_definition_scope(identifier) {
-            Some(scope) => scope.eval(identifier),
+            },
             None => None
         }
     }
 
+    /// Adds a function symbol to the static scope of this environment
+    /// TODO forbid the symbol from being in use in the remaining scopes
     pub fn add_function(&mut self, function: Function) -> Rc<Function> {
         let name = function.get_name().to_string();
         let function_rc = Rc::new(function);
-        self.symbols.insert(name, Symbol::Function(Rc::clone(&function_rc)));
+        let static_scope = self.scopes.front_mut().unwrap();
+        static_scope.insert(name, Symbol::Function(Rc::clone(&function_rc)));
         function_rc
     }
 
-    pub fn add_struct_def(&mut self, struct_def: StructDecl) -> Rc<StructDecl> {
-        let name = struct_def.get_name().to_string();
-        let struct_def_rc = Rc::new(struct_def);
-        self.symbols.insert(name, Symbol::StructDecl(Rc::clone(&struct_def_rc)));
+    /// Adds a structure declaration symbol to the static scope of this environment
+    /// TODO forbid the symbol from being in use in the remaining scopes
+    pub fn add_struct_decl(&mut self, struct_decl: StructDecl) -> Rc<StructDecl> {
+        let name = struct_decl.get_name().to_string();
+        let struct_def_rc = Rc::new(struct_decl);
+        let static_scope = self.scopes.front_mut().unwrap();
+        static_scope.insert(name, Symbol::StructDecl(Rc::clone(&struct_def_rc)));
         struct_def_rc
     }
 
 
+    /// Imports a vector of static symbols
+    /// Meant to be used to import static symbols from the program environment
+    /// into a function's environment
     pub fn push_static(&mut self, global_static: Vec<Symbol>) {
+        let static_scope = self.scopes.front_mut().unwrap();
         for symbol in global_static {
             match symbol {
                 Symbol::StructDecl(decl) => {
-                    self.symbols.insert(
+                    static_scope.insert(
                         decl.get_name(),
                         Symbol::StructDecl(decl));
                 }
                 Symbol::Variable(var) => {
-                    self.symbols.insert(
+                    static_scope.insert(
                         var.get_identifier().to_string(),
                         Symbol::Variable(var));
                 }
                 Symbol::Function(function) => {
-                    self.symbols.insert(
+                    static_scope.insert(
                         function.get_name().to_string(),
                         Symbol::Function(function));
                 }
@@ -161,152 +168,44 @@ impl Environment {
         }
     }
 
+    /// (Deprecated) Add an include that was required in this environment's
+    /// TODO Do this after parsing, probably after the annotation tasks
     pub fn require_include(&mut self, include: Include) {
         self.includes.insert(include);
     }
 
-    pub fn dump(&self) {
+    /// Debug helper that prints a snapshot of the current environment
+    pub fn print_snapshot(&self) {
         for scope in &self.scopes {
-            scope.dump();
-        }
-    }
-}
-
-
-/// A scope is a slice of the current environment.
-/// Scopes can be stacked on top of each other, and variable resolution is done as a LIFO.
-struct Scope {
-    symbols: HashMap<String, Symbol>
-}
-
-impl Scope {
-    pub fn new() -> Scope {
-        Scope {
-            symbols: HashMap::new(),
-        }
-    }
-
-    fn touch(&mut self, identifier: &str) -> Rc<Variable> {
-        if self.symbols.contains_key(identifier) {
-            panic!("Declared same variable twice");
-        } else {
-            let var = Rc::new(Variable {
-                id: identifier.to_string(),
-                declared: RefCell::new(false),
-                data_type: RefCell::new(None),
-                content: RefCell::new(None),
-            });
-            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
-            var
-        }
-    }
-
-    fn declare(&mut self, identifier: &str, dtype: DataType) -> Rc<Variable> {
-        if let Some(symbol) = self.symbols.get(identifier) {
-            if let Symbol::Variable(var) = symbol {
-                if let Some(cdtype) = var.data_type() {
-                    if dtype != cdtype {
-                        panic!("Attempted to change a symbol data type");
-                    }
-                } else {
-                    var.data_type.replace(Some(dtype));
-                }
-                Rc::clone(var)
-            } else {
-                unreachable!();
-            }
-        } else {
-            let var = Rc::new(Variable {
-                id: identifier.to_string(),
-                declared: RefCell::new(false),
-                data_type: RefCell::new(Some(dtype)),
-                content: RefCell::new(None),
-            });
-            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
-            var
-        }
-    }
-
-    fn define(&mut self, identifier: &str, constant: Constant) -> Rc<Variable> {
-        if let Some(symbol) = self.symbols.get_mut(identifier) {
-            if let Symbol::Variable(var) = symbol {
-                match &var.get_type() {
-                    Some(dt) if dt.clone() != constant.data_type() =>
-                        panic!("Assigned to variable of different data type"),
-                    Some(_) => { var.content.replace(Some(constant)); }
-                    None => {
-                        var.data_type.replace(Some(constant.data_type()));
-                        var.content.replace(Some(constant));
-                    }
-                }
-                Rc::clone(var)
-            } else {
-                unreachable!();
-            }
-        } else {
-            let var = Rc::new(Variable {
-                id: identifier.to_string(),
-                declared: RefCell::new(false),
-                data_type: RefCell::new(Some(constant.data_type())),
-                content: RefCell::new(Some(constant)),
-            });
-            self.symbols.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
-            var
-        }
-    }
-
-    pub fn is_defined(&self, identifier: &str) -> bool {
-        self.symbols.contains_key(identifier)
-    }
-
-    pub fn get(&self, identifier: &str) -> Option<&Symbol> {
-        self.symbols.get(identifier).clone()
-    }
-
-    pub fn eval(&self, identifier: &str) -> Option<Symbol> {
-        match self.symbols.get(identifier) {
-            Some(symbol) => {
+            println!("----------------------------");
+            for symbol in scope.values() {
                 match symbol {
-                    Symbol::Constant(_) | Symbol::Function(_) => Some(symbol.clone()),
-                    Symbol::Variable(var) => {
-                        if let Some(constant) = var.eval() {
-                            Some(Symbol::Constant(constant))
+                    Symbol::Variable(ref var) => {
+                        if let Some(dtype) = var.data_type() {
+                            println!("{} {}", dtype.transpile(), var.get_identifier());
                         } else {
-                            panic!("Access to uninitialized variable");
+                            println!("Unknown {}", var.get_identifier());
                         }
                     }
-                    Symbol::StructDecl(_) => { None }
+                    _ => {}
                 }
             }
-            None => None
+            println!("----------------------------");
         }
     }
 
-    #[allow(dead_code)]
+
+    /// Obtains the data type of the symbol that matches with that identifier
+    /// Matching is done with the scopes being considered as a LIFO
     pub fn get_datatype(&self, identifier: &str) -> Option<DataType> {
-        let symbol = self.symbols.get(identifier);
-        if let Some(Symbol::Variable(var)) = symbol {
+        if let Some(Symbol::Variable(var)) = self.get(identifier) {
             var.data_type.borrow().clone()
         } else {
             None
         }
     }
-
-    pub fn dump(&self) {
-        for symbol in self.symbols.values() {
-            match symbol {
-                Symbol::Variable(ref var) => {
-                    if let Some(dtype) = var.get_type() {
-                        println!("{} {}", dtype.transpile(), var.get_identifier());
-                    } else {
-                        println!("Unknown {}", var.get_identifier());
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
 }
+
 
 /// Variables are data values that belong to the environment
 /// A variable's type is inferred upon the first usage
@@ -329,8 +228,7 @@ impl Variable {
         self.data_type.borrow().is_some()
     }
 
-
-    pub fn get_type(&self) -> Option<DataType> {
+    pub fn data_type(&self) -> Option<DataType> {
         self.data_type.borrow().clone()
     }
 
@@ -338,8 +236,13 @@ impl Variable {
         self.data_type.replace(Some(dtype));
     }
 
-    pub fn get_content(&self) -> Option<Constant> {
+    pub fn content(&self) -> Option<Constant> {
         self.content.borrow().clone()
+    }
+
+    pub fn set_content(&self, c: Constant) {
+        // TODO: Validate
+        self.content.replace(Some(c));
     }
 
     pub fn is_declared(&self) -> bool {
@@ -348,16 +251,6 @@ impl Variable {
 
     pub fn set_declared(&self) {
         self.declared.replace(true);
-    }
-}
-
-impl Evaluable for Variable {
-    fn data_type(&self) -> Option<DataType> {
-        self.get_type()
-    }
-
-    fn eval(&self) -> Option<Constant> {
-        self.content.borrow().clone()
     }
 }
 
@@ -372,6 +265,7 @@ impl fmt::Display for Variable {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub enum Symbol {
     Constant(Constant),
     Variable(Rc<Variable>),
