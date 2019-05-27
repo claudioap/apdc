@@ -65,7 +65,7 @@ impl Attribute {
 
     pub fn access_transpile(&self, var: &Rc<Variable>) -> String {
         match self {
-            Attribute::Local(attr) => format!("{}.{}", var.get_identifier(), attr.name),
+            Attribute::Local(attr) => format!("{}->{}", var.get_identifier(), attr.name),
             Attribute::Foreign(_attr) => unimplemented!(),
         }
     }

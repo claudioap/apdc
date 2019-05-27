@@ -27,7 +27,7 @@ pub fn insert_allocations(statements: &mut Vec<Statement>) {
     for statement in &*statements {
         if let Statement::StructDef(var, struct_def)  = statement {
             allocations.push((
-                index,
+                index + 1,
                 Statement::Allocation(
                     Rc::clone(var),
                     struct_def.get_declaration())));

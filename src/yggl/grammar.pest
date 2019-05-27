@@ -10,6 +10,13 @@ number = @{
     ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
 }
 
+dtype = _{bool_t | int_t | float_t | char_t | fun_t | identifier}
+bool_t = {"bool"}
+int_t = {"int"}
+float_t = {"float"}
+char_t = {"char"}
+fun_t = {"fun"}
+
 char = {
     !("\"" | "\\") ~ ANY
     | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
@@ -29,6 +36,7 @@ dict = {
 
 /* ########## VARIABLES AND EVALUATION ########## */
 identifier = @{!ASCII_DIGIT ~(ASCII_ALPHANUMERIC | "_" | "-")+}
+cast = { identifier ~ "as" ~ dtype}
 value = _{string | number | boolean | dict | identifier }
 evaluable = _{ "("~ evaluable ~")" | function_call | attribute | object | object_call | value | identifier}
 
@@ -57,7 +65,7 @@ term = _{ evaluable | "(" ~ expression ~ ")" }
 
 /* ########## COMPOSITE TYPES ########## */
 parameter = { string | identifier }
-parameters = {"(" ~  identifier ~ ("," ~ identifier)*~ ")"}
+parameters = {"(" ~  (identifier|cast) ~ ("," ~ (identifier|cast))*~ ")"}
 arguments = {"(" ~ (expression ~ ("," ~ expression)*)?~ ")"}
 function = {
     "fun" ~ parameters? // arguments (including brackets) optional
@@ -117,8 +125,9 @@ cycle_for = {
 assignment = {(attribute|identifier) ~ "=" ~ (function|struct_decl|struct_def|protocol|expression)}
 function_call = {identifier ~ arguments}
 object_call = {identifier ~ "." ~ identifier ~ arguments}
+declaration = { "touch" ~ identifier }
 
-statement = {function_return|assignment|conditional_if|cycle|function_call|object_call}
+statement = {function_return|assignment|conditional_if|cycle|function_call|object_call|declaration|cast}
 program = _{ SOI ~ statement+ ~ EOI }
 
 

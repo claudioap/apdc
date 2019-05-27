@@ -62,8 +62,8 @@ impl Environment {
         self.get_current_scope().touch(identifier)
     }
 
-    pub fn declare(&mut self, identifier: &str, dtype: DataType) {
-        self.get_current_scope().declare(identifier, dtype);
+    pub fn declare(&mut self, identifier: &str, dtype: DataType) -> Rc<Variable> {
+        self.get_current_scope().declare(identifier, dtype)
     }
 
     pub fn define(&mut self, identifier: &str, constant: Constant) -> Rc<Variable> {

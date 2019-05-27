@@ -121,6 +121,10 @@ impl Statement {
                 let cycle = Cycle::for_from(pair, env)?;
                 Ok(Statement::Cycle(cycle))
             }
+            Rule::declaration => {
+                let identifier = pair.as_str();
+                Ok(Statement::Declaration(env.touch(identifier)))
+            }
             _ => unreachable!("{}", pair)
         }
     }
@@ -246,12 +250,12 @@ impl Statement {
             } else {
                 Err(CompilationError::new(
                     0, 0, "".to_string(),
-                    "Attribution to field of non-struct".to_string()))
+                    format!("Attribution to attribute of non-struct {}", identifier_str)))
             }
         } else {
             Err(CompilationError::new(
                 0, 0, "".to_string(),
-                "Attribution to field of non-struct".to_string()))
+                format!("Attribution to attribute of non-struct {}", identifier_str)))
         }
     }
 }
@@ -430,6 +434,47 @@ impl Expression {
     }
 }
 
+impl DataType {
+    pub fn from(pair: Pair<Rule>, env: &Environment) -> Result<DataType, CompilationError> {
+        match pair.as_rule() {
+            Rule::int_t => {
+                Ok(DataType::Int)
+            }
+            Rule::float_t => {
+                Ok(DataType::Float)
+            }
+            Rule::char_t => {
+                Ok(DataType::Char)
+            }
+            Rule::bool_t => {
+                Ok(DataType::Bool)
+            }
+            Rule::fun_t => {
+                Ok(DataType::Function)
+            }
+            Rule::identifier => {
+                let identifier = pair.as_str();
+                if let Some(symbol) = env.get(identifier) {
+                    if let Symbol::StructDecl(decl) = symbol {
+                        Ok(DataType::Struct(Rc::clone(decl)))
+                    } else {
+                        Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            format!("{} is not a data type.", identifier),
+                        ))
+                    }
+                } else {
+                    Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("Unknown data type {}.", identifier),
+                    ))
+                }
+            }
+            _ => unreachable!()
+        }
+    }
+}
+
 impl Conditional {
     pub fn from(pair: Pair<Rule>, env: &mut Environment)
                 -> Result<Conditional, CompilationError> {
@@ -489,7 +534,7 @@ impl Function {
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::parameters => {
-                    parameters = Some(Function::read_parameters(pair, &mut function_env));
+                    parameters = Some(Function::read_parameters(pair, &mut function_env)?);
                 }
                 Rule::statement => {
                     let statement = Statement::from(pair, &mut function_env)?;
@@ -515,14 +560,28 @@ impl Function {
         }
     }
 
-    fn read_parameters(pair: Pair<Rule>, env: &mut Environment) -> Vec<Rc<Variable>> {
+    fn read_parameters(pair: Pair<Rule>, env: &mut Environment)
+                       -> Result<Vec<Rc<Variable>>, CompilationError> {
         let mut parameters = vec!();
         for parameter_pair in pair.into_inner() {
-            let parameter = env.touch(parameter_pair.as_str());
-            parameter.set_declared();
-            parameters.push(parameter);
+            match parameter_pair.as_rule() {
+                Rule::identifier => {
+                    let parameter = env.touch(parameter_pair.as_str());
+                    parameter.set_declared();
+                    parameters.push(parameter);
+                }
+                Rule::cast => {
+                    let mut inner = parameter_pair.into_inner();
+                    let identifier = inner.next().unwrap().as_str();
+                    let dtype = DataType::from(inner.next().unwrap(), env)?;
+                    let parameter = env.declare(identifier, dtype);
+                    parameter.set_declared();
+                    parameters.push(parameter);
+                }
+                _ => unreachable!()
+            }
         }
-        parameters
+        Ok(parameters)
     }
 
     fn read_arguments(pair: Pair<Rule>, env: &Environment) -> Result<Vec<Expression>, CompilationError> {
