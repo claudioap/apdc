@@ -93,6 +93,14 @@ impl Environment {
         set
     }
 
+    pub fn get_static_symbols(&self) -> Vec<Symbol> {
+        let mut symbols = vec!();
+        for symbol in self.symbols.values() {
+            symbols.push(symbol.clone());
+        }
+        symbols
+    }
+
     pub fn get_includes(&self) -> &HashSet<Include> {
         &self.includes
     }
@@ -126,6 +134,31 @@ impl Environment {
         let struct_def_rc = Rc::new(struct_def);
         self.symbols.insert(name, Symbol::StructDecl(Rc::clone(&struct_def_rc)));
         struct_def_rc
+    }
+
+
+    pub fn push_static(&mut self, global_static: Vec<Symbol>) {
+        for symbol in global_static {
+            match symbol {
+                Symbol::StructDecl(decl) => {
+                    self.symbols.insert(
+                        decl.get_name(),
+                        Symbol::StructDecl(decl));
+                }
+                Symbol::Variable(var) => {
+                    self.symbols.insert(
+                        var.get_identifier().to_string(),
+                        Symbol::Variable(var));
+                }
+                Symbol::Function(function) => {
+                    self.symbols.insert(
+                        function.get_name().to_string(),
+                        Symbol::Function(function));
+                }
+                Symbol::Constant(_) =>
+                    unimplemented!("Static constants not implemented.")
+            }
+        }
     }
 
     pub fn require_include(&mut self, include: Include) {

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt;
 use crate::yggl::environment::Environment;
 use crate::yggl::statement::Statement;
-use crate::yggl::anotation;
+use crate::yggl::annotation;
 
 
 /// A program is the AST root.
@@ -18,7 +18,7 @@ pub struct Program {
 }
 
 #[allow(dead_code)]
-impl Program {
+impl  Program {
     pub fn new() -> Program {
         Program {
             environment: Environment::new(),
@@ -32,8 +32,9 @@ impl Program {
     }
 
     pub fn annotate(&mut self) {
-        anotation::propagate_types(&self.statements);
-        anotation::insert_declarations(&mut self.statements);
+        annotation::propagate_types(&self.statements);
+        annotation::insert_declarations(&mut self.statements);
+        annotation::insert_allocations(&mut self.statements);
     }
 
     pub fn run(&mut self) {
@@ -62,7 +63,7 @@ impl Program {
         output.push_str("int main(){\n");
         for statement in &self.statements {
             let transpilation = statement.transpile(&self.environment).replace("\n", "\n    ");
-            if transpilation == "" {
+            if transpilation.is_empty() {
                 continue;
             }
             output.push_str("    ");

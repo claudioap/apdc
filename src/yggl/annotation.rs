@@ -21,6 +21,27 @@ pub fn insert_declarations(statements: &mut Vec<Statement>) {
     }
 }
 
+pub fn insert_allocations(statements: &mut Vec<Statement>) {
+    let mut index = 0;
+    let mut allocations = vec![];
+    for statement in &*statements {
+        if let Statement::StructDef(var, struct_def)  = statement {
+            allocations.push((
+                index,
+                Statement::Allocation(
+                    Rc::clone(var),
+                    struct_def.get_declaration())));
+        }
+        index += 1;
+    }
+
+    let mut offset = 0;
+    for allocation in allocations {
+        statements.insert(allocation.0 + offset, allocation.1);
+        offset += 1;
+    }
+}
+
 pub fn propagate_types(statements: &Vec<Statement>){
     loop {
         for statement in &*statements {

@@ -159,7 +159,10 @@ impl Statement {
                 match lhs_pair.as_rule() {
                     Rule::identifier => {
                         let identifier_str = lhs_pair.as_str().to_string();
-                        let function = Function::from(rhs_pair, identifier_str.to_string())?;
+                        let function = Function::from(
+                            rhs_pair,
+                            identifier_str.to_string(),
+                            env)?;
                         let function_rc = env.add_function(function);
                         Ok(Statement::FunctionDef(function_rc))
                     }
@@ -478,7 +481,7 @@ impl Conditional {
 }
 
 impl Function {
-    pub fn from(pair: Pair<Rule>, name: String)
+    pub fn from(pair: Pair<Rule>, name: String, env: &mut Environment)
                 -> Result<Function, CompilationError> {
         let mut parameters: Option<Vec<Rc<Variable>>> = Option::None;
         let mut statements = vec![];
@@ -503,6 +506,8 @@ impl Function {
                     "".to_string(),
                     "Function definition without statements".to_string()));
         }
+
+        function_env.push_static(env.get_static_symbols());
         if let Some(parameters_vec) = parameters {
             Function::new(function_env, name, parameters_vec, statements)
         } else {
@@ -576,7 +581,7 @@ impl StructDef {
             _ => Err(CompilationError::new(
                 0, 0,
                 "".to_string(),
-                "Attempted to build a struct from another symbol".to_string()))
+                format!("Attempted to build a struct from non-struct symbol {}", identifier)))
         }
     }
 }

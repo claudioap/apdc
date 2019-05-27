@@ -3,7 +3,7 @@ use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::data::{DataType, Evaluable, Constant};
 use crate::yggl::expression::Expression;
-use crate::yggl::anotation;
+use crate::yggl::annotation;
 use crate::parser::CompilationError;
 
 /// The concept of a function, which is treated like subprogram within the program.
@@ -22,8 +22,8 @@ impl Function {
     pub fn new(environment: Environment, name: String, parameters: Vec<Rc<Variable>>,
                mut statements: Vec<Statement>) -> Result<Function, CompilationError> {
         let dtype = Function::determine_return(&statements)?;
-        anotation::propagate_types(&statements);
-        anotation::insert_declarations(&mut statements);
+        annotation::propagate_types(&statements);
+        annotation::insert_declarations(&mut statements);
         Ok(Function {
             name,
             parameters,
@@ -100,7 +100,6 @@ impl Function {
     pub fn env_dump(&self) {
         self.environment.dump();
     }
-
 }
 
 #[allow(dead_code)]

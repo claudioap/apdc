@@ -1,7 +1,7 @@
 use std::string::ToString;
 use std::fmt;
 use std::rc::Rc;
-use crate::yggl::data::DataType;
+use crate::yggl::data::{DataType, Evaluable};
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::expression::Expression;
 use crate::yggl::function::{FunctionCall, Function};
@@ -14,6 +14,7 @@ use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 pub enum Statement {
     // TODO String -> Rc<Variable>, Constants?!?
     Declaration(Rc<Variable>),
+    Allocation(Rc<Variable>, Rc<StructDecl>),
     Assignment(Rc<Variable>, Expression),
     StructDecl(Rc<StructDecl>),
     StructDef(Rc<Variable>, Rc<StructDef>),
@@ -100,12 +101,15 @@ impl Statement {
             &Statement::StructDef(ref var, ref definition) => {
                 format!("struct {}* {};", definition.get_declaration().get_name(), var.get_identifier())
             }
+            &Statement::Allocation(ref var, _) => {
+                format!("{} = malloc(sizeof({}));", var.get_identifier(), var.data_type().unwrap().transpile())
+            }
             _ => { "".to_string() }
         }
     }
 }
 
-impl<'a> fmt::Display for Statement {
+impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Statement::Assignment(id, exp) =>
