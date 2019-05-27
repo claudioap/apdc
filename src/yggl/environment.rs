@@ -187,6 +187,12 @@ impl Environment {
                             println!("Unknown {}", var.get_identifier());
                         }
                     }
+                    Symbol::StructDecl(ref struct_decl) => {
+                        println!("struct {}", struct_decl.get_name());
+                    }
+                    Symbol::Function(ref fun) => {
+                        println!("fun {}", fun.get_name());
+                    }
                     _ => {}
                 }
             }

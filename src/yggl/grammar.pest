@@ -65,7 +65,7 @@ term = _{ evaluable | "(" ~ expression ~ ")" }
 
 /* ########## COMPOSITE TYPES ########## */
 parameter = { string | identifier }
-parameters = {"(" ~  (identifier|cast) ~ ("," ~ (identifier|cast))*~ ")"}
+parameters = {"(" ~  (cast | identifier) ~ ("," ~ (cast|identifier))*~ ")"}
 arguments = {"(" ~ (expression ~ ("," ~ expression)*)?~ ")"}
 function = {
     "fun" ~ parameters? // arguments (including brackets) optional
@@ -75,7 +75,7 @@ function_return = {"return" ~ evaluable}
 struct_decl = {
     "struct" ~ "{"  ~ ((identifier ~ ",")*) ~ identifier ~ "}"
 }
-struct_def = { identifier ~ dict }
+struct_def = { identifier ~ (("{" ~ "}")|dict) }
 attribute = {identifier ~ "." ~ identifier}
 
 /* ########## FLOW CONTROL ########## */

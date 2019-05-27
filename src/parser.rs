@@ -542,6 +542,7 @@ impl Function {
         let mut parameters: Option<Vec<Rc<Variable>>> = Option::None;
         let mut statements = vec![];
         let mut function_env = Environment::new();
+        function_env.push_static(env.get_static_symbols());
         for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::parameters => {
@@ -562,8 +563,6 @@ impl Function {
                     "".to_string(),
                     "Function definition without statements".to_string()));
         }
-
-        function_env.push_static(env.get_static_symbols());
         if let Some(parameters_vec) = parameters {
             Function::new(function_env, name, parameters_vec, statements)
         } else {
