@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::data::{Constant, DataType};
 use crate::yggl::structure::Attribute;
+use crate::yggl::function::FunctionCall;
 
 /// Expressions represent portions of code that evaluate to values
 #[derive(Clone)]
@@ -13,25 +14,26 @@ pub enum Expression {
     UnaryOperation(Box<Expression>, UnaryOperation),
     BinaryOperation(Box<Expression>, BinaryOperation, Box<Expression>),
     AttributeAccess(Rc<Variable>, Rc<Attribute>),
+    Call(FunctionCall),
 }
 
 impl Expression {
     pub fn eval(&self, environment: &Environment) -> Constant {
         match self {
-            &Expression::Constant(ref c) => c.clone(),
-            &Expression::Variable(ref var) => {
+            Expression::Constant(c) => c.clone(),
+            Expression::Variable(var) => {
                 if let Some(c) = var.content() {
                     c
                 } else {
                     panic!("Variable evaluation didn't return a constant")
                 }
             }
-            &Expression::UnaryOperation(ref exp, ref op) =>
+            Expression::UnaryOperation(exp, op) =>
                 match op {
                     UnaryOperation::Inc => exp.eval(environment) + Constant::Int(1),
                     UnaryOperation::Dec => exp.eval(environment) - Constant::Int(1)
                 },
-            &Expression::BinaryOperation(ref lexp, ref op, ref rexp) => {
+            Expression::BinaryOperation(lexp, op, rexp) => {
                 match op {
                     BinaryOperation::Sum => lexp.eval(environment) + rexp.eval(environment),
                     BinaryOperation::Sub => lexp.eval(environment) - rexp.eval(environment),
@@ -44,7 +46,7 @@ impl Expression {
                         Constant::Bool(self.bin_eval(environment)),
                 }
             }
-            &Expression::AttributeAccess(_, _) => {
+            Expression::AttributeAccess(_, _) | Expression::Call(_) => {
                 unimplemented!();
             }
         }
@@ -52,15 +54,15 @@ impl Expression {
 
     pub fn bin_eval(&self, environment: &Environment) -> bool {
         match self {
-            &Expression::Constant(ref c) => c.truth_value(),
-            &Expression::Variable(_) => self.eval(environment).truth_value(),
-            &Expression::UnaryOperation(ref exp, ref op) => {
+            Expression::Constant(c) => c.truth_value(),
+            Expression::Variable(_) => self.eval(environment).truth_value(),
+            Expression::UnaryOperation(exp, op) => {
                 match op {
                     UnaryOperation::Inc => (exp.eval(environment) + Constant::Int(1)).truth_value(),
                     UnaryOperation::Dec => (exp.eval(environment) - Constant::Int(1)).truth_value()
                 }
             }
-            &Expression::BinaryOperation(ref lexp, ref op, ref rexp) => {
+            Expression::BinaryOperation(lexp, op, rexp) => {
                 match op {
                     BinaryOperation::Sum =>
                         (lexp.eval(environment) + rexp.eval(environment)).truth_value(),
@@ -90,32 +92,36 @@ impl Expression {
                         lexp.eval(environment).truth_value() || rexp.eval(environment).truth_value(),
                 }
             }
-            &Expression::AttributeAccess(_, _) => { unimplemented!() }
+            Expression::AttributeAccess(_, _) | &Expression::Call(_) => { unimplemented!() }
         }
     }
 
     pub fn data_type(&self) -> Option<DataType> {
         match self {
-            &Expression::Constant(ref c) => Some(c.data_type()),
-            &Expression::Variable(ref v) => v.data_type(),
-            &Expression::UnaryOperation(ref exp, _) => exp.data_type(),
-            &Expression::BinaryOperation(ref exp, _, _) => exp.data_type(),
-            &Expression::AttributeAccess(_, ref attr) => attr.data_type()
+            Expression::Constant(c) => Some(c.data_type()),
+            Expression::Variable(v) => v.data_type(),
+            Expression::UnaryOperation(exp, _) => exp.data_type(),
+            Expression::BinaryOperation(exp, _, _) => exp.data_type(),
+            Expression::AttributeAccess(_, attr) => attr.data_type(),
+            Expression::Call(call) => call.data_type()
         }
     }
 
-    pub fn transpile(&self, env: &Environment) -> String {
+    pub fn transpile(&self) -> String {
         match self {
-            &Expression::Constant(ref c) => format!("{}", c),
-            &Expression::Variable(ref v) => format!("{}", v.get_identifier()),
-            &Expression::UnaryOperation(ref exp, ref op) => {
-                format!("({}{})", op, exp.transpile(env))
+            Expression::Constant(c) => format!("{}", c),
+            Expression::Variable(v) => format!("{}", v.get_identifier()),
+            Expression::UnaryOperation( exp, op) => {
+                format!("({}{})", op, exp.transpile())
             }
-            &Expression::BinaryOperation(ref lhs, ref op, ref rhs) => {
-                format!("({} {} {})", lhs.transpile(env), op, rhs.transpile(env))
+            Expression::BinaryOperation(lhs, op, rhs) => {
+                format!("({} {} {})", lhs.transpile(), op, rhs.transpile())
             }
-            &Expression::AttributeAccess(ref var, ref attr) => {
+            Expression::AttributeAccess(var, attr) => {
                 attr.access_transpile(&var)
+            }
+            Expression::Call(call) => {
+                call.transpile()
             }
         }
     }
@@ -124,11 +130,18 @@ impl Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self {
-            &Expression::Variable(id) => write!(f, "{}", id),
-            &Expression::Constant(v) => write!(f, "{}", v),
-            &Expression::UnaryOperation(a, op) => write!(f, "{}{}", a, op),
-            &Expression::BinaryOperation(l, op, r) => write!(f, "({}{}{})", l, op, r),
-            &Expression::AttributeAccess(var, attr) => write!(f, "{}", attr.access_transpile(&var))
+            Expression::Variable(id) =>
+                write!(f, "{}", id),
+            Expression::Constant(v) =>
+                write!(f, "{}", v),
+            Expression::UnaryOperation(a, op) =>
+                write!(f, "{}{}", a, op),
+            Expression::BinaryOperation(l, op, r) =>
+                write!(f, "({}{}{})", l, op, r),
+            Expression::AttributeAccess(var, attr) =>
+                write!(f, "{}", attr.access_transpile(&var)),
+            Expression::Call(call) =>
+                write!(f, "{}", call.transpile()),
         }
     }
 }
@@ -228,8 +241,8 @@ pub enum UnaryOperation { Inc, Dec }
 impl fmt::Display for UnaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", match self {
-            &UnaryOperation::Inc => "++",
-            &UnaryOperation::Dec => "--",
+            UnaryOperation::Inc => "++",
+            UnaryOperation::Dec => "--",
         })
     }
 }
@@ -240,19 +253,19 @@ pub enum BinaryOperation { Sum, Sub, Mul, Div, Pow, Eq, Neq, Gr, Geq, Le, Leq, A
 impl fmt::Display for BinaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", match self {
-            &BinaryOperation::Sum => "+",
-            &BinaryOperation::Sub => "-",
-            &BinaryOperation::Mul => "*",
-            &BinaryOperation::Div => "/",
-            &BinaryOperation::Pow => "^",
-            &BinaryOperation::Eq => "==",
-            &BinaryOperation::Neq => "!=",
-            &BinaryOperation::Gr => ">",
-            &BinaryOperation::Geq => ">=",
-            &BinaryOperation::Le => "<",
-            &BinaryOperation::Leq => "<=",
-            &BinaryOperation::And => "&&",
-            &BinaryOperation::Or => "||",
+            BinaryOperation::Sum => "+",
+            BinaryOperation::Sub => "-",
+            BinaryOperation::Mul => "*",
+            BinaryOperation::Div => "/",
+            BinaryOperation::Pow => "^",
+            BinaryOperation::Eq => "==",
+            BinaryOperation::Neq => "!=",
+            BinaryOperation::Gr => ">",
+            BinaryOperation::Geq => ">=",
+            BinaryOperation::Le => "<",
+            BinaryOperation::Leq => "<=",
+            BinaryOperation::And => "&&",
+            BinaryOperation::Or => "||",
         })
     }
 }

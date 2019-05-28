@@ -136,6 +136,11 @@ impl Statement {
         match rhs_pair.as_rule() {
             Rule::expression => {
                 let expression = Expression::from(rhs_pair, env)?;
+                if expression.data_type().is_none() {
+                    return Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("Expression {} has no return.", expression.transpile())));
+                }
                 match lhs_pair.as_rule() {
                     Rule::identifier => {
                         let identifier = Statement::obtain_identifier(
@@ -391,6 +396,15 @@ impl Expression {
                                 format!("\"{}\" is not declared", object_name)))
                         }
                     }
+                    Rule::function_call => {
+                        if let Statement::Call(call) = Function::parse_call(pair, env)? {
+                            Ok(Expression::Call(call))
+                        } else {
+                            Err(CompilationError::new(
+                                0, 0, "".to_string(),
+                                "Unable to parse function call".to_string()))
+                        }
+                    }
                     _ => unreachable!("{}", pair),
                 },
             |lhs: Result<Expression, CompilationError>, op: Pair<Rule>, rhs: Result<Expression, CompilationError>|
@@ -552,6 +566,11 @@ impl Function {
                     let statement = Statement::from(pair, &mut function_env)?;
                     statements.push(statement);
                 }
+                Rule::function_return => {
+                    let expression = Expression::from(
+                        pair.into_inner().next().unwrap(), &function_env)?;
+                    statements.push(Statement::Return(expression));
+                }
                 _ => unreachable!()
             }
         }
@@ -604,7 +623,7 @@ impl Function {
         Ok(arguments)
     }
 
-    fn parse_call(pair: Pair<Rule>, env: &Environment) -> Result<Statement, CompilationError> {
+    pub fn parse_call(pair: Pair<Rule>, env: &Environment) -> Result<Statement, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let identifier = inner_rules.next().unwrap().as_str();
         let arguments = Function::read_arguments(inner_rules.next().unwrap(), env)?;
@@ -613,7 +632,13 @@ impl Function {
         } else {
             if let Some(symbol) = env.get(identifier) {
                 if let Symbol::Function(function) = symbol {
-                    Ok(Statement::Call(FunctionCall::new(Rc::clone(&function), arguments)))
+                    let mut arg_index = 0;
+                    for argument in &*arguments {
+                        function.set_parameter_type(arg_index, argument.data_type().unwrap())?;
+                        arg_index += 1;
+                    }
+                    Ok(Statement::Call(
+                        FunctionCall::new(Rc::clone(&function), arguments)))
                 } else {
                     Err(CompilationError::new(
                         0, 0, "".to_string(),

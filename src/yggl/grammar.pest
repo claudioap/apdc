@@ -69,9 +69,9 @@ parameters = {"(" ~  (cast | identifier) ~ ("," ~ (cast|identifier))*~ ")"}
 arguments = {"(" ~ (expression ~ ("," ~ expression)*)?~ ")"}
 function = {
     "fun" ~ parameters? // arguments (including brackets) optional
-    ~ "{"  ~ statement* ~ "}"
+    ~ "{"  ~ (function_return | statement)+ ~ "}"
 }
-function_return = {"return" ~ evaluable}
+function_return = {"return" ~ expression}
 struct_decl = {
     "struct" ~ "{"  ~ ((identifier ~ ",")*) ~ identifier ~ "}"
 }
@@ -127,7 +127,7 @@ function_call = {identifier ~ arguments}
 object_call = {identifier ~ "." ~ identifier ~ arguments}
 declaration = { "touch" ~ identifier }
 
-statement = {function_return|assignment|conditional_if|cycle|function_call|object_call|declaration|cast}
+statement = {assignment|conditional_if|cycle|function_call|object_call|declaration|cast}
 program = _{ SOI ~ statement+ ~ EOI }
 
 

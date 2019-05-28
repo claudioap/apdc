@@ -30,7 +30,7 @@ impl Conditional {
     pub fn transpile(&self, env: &Environment) -> String {
         let mut output = String::new();
         if let Some(condition) = &self.condition {
-            output.push_str(format!("if ({}) {{\n", condition.transpile(env)).as_str());
+            output.push_str(format!("if ({}) {{\n", condition.transpile()).as_str());
         } else {
             output.push_str("{\n");
         }
@@ -68,7 +68,7 @@ impl Cycle {
                 output.push('}');
             }
             Cycle::While(condition, statements) => {
-                output.push_str(format!("while ({}) {{\n", condition.transpile(env)).as_str());
+                output.push_str(format!("while ({}) {{\n", condition.transpile()).as_str());
                 for statement in statements {
                     output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
                 }
@@ -79,7 +79,7 @@ impl Cycle {
                 for statement in statements {
                     output.push_str(format!("    {}\n", statement.transpile(env)).as_str());
                 }
-                output.push_str(format!("}} while ({});", condition.transpile(env)).as_str());
+                output.push_str(format!("}} while ({});", condition.transpile()).as_str());
             }
             Cycle::For(initialization, condition, posrun, statements) => {
                 if let Some(posrun_statement) = posrun {
@@ -87,7 +87,7 @@ impl Cycle {
                         format!(
                             "for({};{};{}){{\n",
                             initialization.transpile(env),
-                            condition.transpile(env),
+                            condition.transpile(),
                             posrun_statement.transpile(env)
                         ).as_str());
                 } else {
@@ -95,7 +95,7 @@ impl Cycle {
                         format!(
                             "for({};{};){{\n",
                             initialization.transpile(env),
-                            condition.transpile(env)
+                            condition.transpile()
                         ).as_str());
                 }
                 for statement in statements {

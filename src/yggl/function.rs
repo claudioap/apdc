@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cell::RefCell;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::data::{DataType, Constant};
@@ -14,23 +15,24 @@ pub struct Function {
     parameters: Vec<Rc<Variable>>,
     environment: Environment,
     statements: Vec<Statement>,
-    return_type: Option<DataType>,
+    return_type: RefCell<Option<DataType>>,
 }
 
 #[allow(dead_code)]
 impl Function {
     pub fn new(environment: Environment, name: String, parameters: Vec<Rc<Variable>>,
                mut statements: Vec<Statement>) -> Result<Function, CompilationError> {
-        let dtype = Function::determine_return(&statements)?;
         annotation::propagate_types(&statements);
         annotation::insert_declarations(&mut statements);
-        Ok(Function {
+        let function = Function {
             name,
             parameters,
             environment,
             statements,
-            return_type: dtype,
-        })
+            return_type: RefCell::new(None),
+        };
+        function.determine_return()?;
+        Ok(function)
     }
 
     pub fn get_name(&self) -> &str {
@@ -38,12 +40,12 @@ impl Function {
     }
 
     pub fn get_return(&self) -> Option<DataType> {
-        self.return_type.clone()
+        self.return_type.borrow().clone()
     }
 
-    fn determine_return(statements: &Vec<Statement>) -> Result<Option<DataType>, CompilationError> {
-        let mut dtype: Option<DataType> = None;
-        for statement in statements {
+    pub fn determine_return(&self) -> Result<(), CompilationError> {
+        let mut dtype = self.return_type.borrow().clone();
+        for statement in &self.statements {
             if let Statement::Return(ref evaluable) = statement {
                 if dtype == None {
                     dtype = evaluable.data_type();
@@ -51,15 +53,32 @@ impl Function {
                     return Err(
                         CompilationError::new(
                             0, 0, "".to_string(),
-                            "Function returns two different data types".to_string()));
+                            format!(
+                                "Function {} returns two different data types ({} and {})",
+                                self.name,
+                                dtype.unwrap().transpile(),
+                                evaluable.data_type().unwrap().transpile())));
                 }
             }
         }
-        Ok(None)
+        self.return_type.replace(dtype);
+        Ok(())
+    }
+
+    pub fn set_parameter_type(&self, index: usize, dtype: DataType) -> Result<(), CompilationError> {
+        match self.parameters.get(index) {
+            Some(var) => var.set_type(dtype),
+            None => {
+                return Err(CompilationError::new(
+                    0, 0, "".to_string(),
+                    format!("Function {} has no parameter in index {}", self.name, index)));
+            }
+        }
+        self.determine_return()
     }
 
     pub fn transpile(&self) -> String {
-        let rtype = match &self.return_type {
+        let rtype = match &self.return_type.borrow().clone() {
             Some(dtype) => dtype.transpile(),
             _ => "void".to_string()
         };
@@ -90,7 +109,7 @@ impl Function {
     }
 
     pub fn data_type(&self) -> Option<DataType> {
-        self.return_type.clone()
+        self.return_type.borrow().clone()
     }
 
     pub fn call(&self) -> Option<Constant> {
@@ -103,6 +122,7 @@ impl Function {
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct FunctionCall {
     function: Rc<Function>,
     arguments: Vec<Expression>,
@@ -118,11 +138,21 @@ impl FunctionCall {
         return Rc::clone(&self.function);
     }
 
-    fn data_type(&self) -> Option<DataType> {
+    pub fn data_type(&self) -> Option<DataType> {
         self.function.data_type()
     }
 
     fn eval(&self) -> Option<Constant> {
         self.function.call()
+    }
+
+    pub fn transpile(&self) -> String {
+        let mut output = format!("{}(", self.function.get_name());
+        for argument in &self.arguments {
+            output.push_str(format!("{},", argument.transpile()).as_str())
+        }
+        output.pop();
+        output.push(')');
+        output
     }
 }

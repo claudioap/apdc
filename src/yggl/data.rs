@@ -40,11 +40,6 @@ impl DataType {
     }
 }
 
-pub trait Evaluable {
-    fn data_type(&self) -> Option<DataType>;
-    fn eval(&self) -> Option<Constant>;
-}
-
 /// Constants are either hardcoded literals or evaluated values
 #[derive(Clone)]
 #[allow(dead_code)]
