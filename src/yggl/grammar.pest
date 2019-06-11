@@ -2,7 +2,16 @@
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ ("/*" ~ (!"*/" ~ ANY)* ~ "*/"| "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE) }
 
-/* ########## DATA TYPES ########## */
+reserved_words = {
+    "true"|"false"|"int"|"bool"|"float"|"char"|"fun"|"struct"
+    |"if"|"else"|"elif"|"loop"|"while"|"do"|"for"|"return"
+    |"Protocol"|ygg_type|"handles"|"setup"|"send"|"notify"}
+
+
+statement = {assignment|conditional_if|cycle|function_return|declaration|cast|ygg_statements}
+program = _{ SOI ~ (proto_def|function|struct_decl|assignment)+ ~ EOI }
+
+/* ########## LITERALS ########## */
 number = @{
     "-"?
     ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
@@ -10,12 +19,8 @@ number = @{
     ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
 }
 
-dtype = _{bool_t | int_t | float_t | char_t | fun_t | identifier}
-bool_t = {"bool"}
-int_t = {"int"}
-float_t = {"float"}
-char_t = {"char"}
-fun_t = {"fun"}
+positive_integer = {("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)}
+
 
 char = {
     !("\"" | "\\") ~ ANY
@@ -26,29 +31,48 @@ boolean = { "true" | "false" }
 inner = @{ char* }
 string = ${ "\"" ~ inner ~ "\"" }
 
-pair = { identifier ~ ":" ~ evaluable }
-dict = {
-  "{"
-  	~ pair // At least one pair required
-    ~ ("," ~ pair)* // Pairs separated with commas
-  ~"}"
+time_value = {((positive_integer ~ time_unit)|"0")+}
+time_unit = _{hour|minute|second|milli}
+hour = {"h"}
+minute = {"m"}
+second = {"s"}
+milli = {"ms"}
+
+address = _{broadcast_address|mac_address}
+broadcast_address = {"bcast"}
+mac_address = {
+    HEX_DIGIT ~ HEX_DIGIT ~ ":"
+    ~ HEX_DIGIT ~ HEX_DIGIT ~ ":"
+    ~ HEX_DIGIT ~ HEX_DIGIT ~ ":"
+    ~ HEX_DIGIT ~ HEX_DIGIT ~ ":"
 }
+
+/* ########## TYPES ########## */
+dtype = _{ bool_t | int_t | float_t | char_t | uuid_t| fun_t | identifier}
+bool_t = {"bool"}
+int_t = {"int"}
+float_t = {"float"}
+char_t = {"char"}
+uuid_t = {"uuid"}
+fun_t = {"fun"}
 
 /* ########## VARIABLES AND EVALUATION ########## */
 identifier = @{!ASCII_DIGIT ~(ASCII_ALPHANUMERIC | "_" | "-")+}
-cast = { identifier ~ "as" ~ dtype}
-value = _{string | number | boolean | dict | identifier }
-evaluable = _{ "("~ evaluable ~")" | function_call | attribute | object | object_call | value | identifier}
+cast = { identifier ~ "as" ~ dtype }
+value = _{ string | number | boolean | dict | time_value }
+evaluable = _{ "("~ evaluable ~")" | function_call | attribute | value | identifier }
 
+/* ########## OPERATIONS ########## */
+unop = {neg}
+neg = {"!"}
 
-binop = _{add|sub|mul|div|rem|pow|eq|le|leq|gr|geq|and|or}
+binop = _{add|sub|mul|div|rem|pow|eq|le|leq|gr|geq|and|or|incl|nincl}
 add =  {"+"}
 sub =  {"-"}
 mul =  {"*"}
 div =  {"/"}
 rem =  {"%"}
 pow =  {"^"}
-neg = {"!"}
 eq =  {"=="}
 neq =  {"!="}
 le =  {"<"}
@@ -57,29 +81,49 @@ gr =  {">"}
 geq =  {">="}
 and =  {"&&"}
 or =  {"||"}
+incl =  {"in"}
+nincl =  {"not in"}
 
-
+/* ########## EXPRESSIONS ########## */
 expression = {term ~ (binop ~ term)*}
 term = _{ evaluable | "(" ~ expression ~ ")" }
 
-
 /* ########## COMPOSITE TYPES ########## */
+
+pair = { identifier ~ ":" ~ evaluable }
+dict = {
+  "{"
+    ~ pair // At least one pair required
+    ~ ("," ~ pair)* // Pairs separated with commas
+  ~"}"
+}
+
+struct_decl = {
+    ("struct" ~ identifier)? ~ "{"
+        ~ struct_decl_body
+    ~ "}"
+}
+struct_decl_body = {(identifier ~ ",")* ~ identifier}
+struct_def = { identifier ~ (("{" ~ "}")|dict) }
+attribute = { identifier ~ "." ~ identifier}
+list_init = { "[" ~ arguments? ~ "]" }
+
+/* ########## Functions ########## */
 parameter = { string | identifier }
-parameters = {"(" ~  (cast | identifier) ~ ("," ~ (cast|identifier))*~ ")"}
-arguments = {"(" ~ (expression ~ ("," ~ expression)*)?~ ")"}
+parameters = { (cast | identifier) ~ ("," ~ (cast|identifier))*}
+arguments = { (expression ~ ("," ~ expression)*)?}
+body = { statement+ }
 function = {
-    "fun" ~ parameters? // arguments (including brackets) optional
-    ~ "{"  ~ (function_return | statement)+ ~ "}"
+    "fun" ~ identifier ~ ("(" ~ parameters ~ ")")? // arguments (including brackets) optional
+    ~ "{"  ~ body ~ "}"
+}
+anon_function = {
+    "|" ~ parameters? ~ "|"
+    ~ "{"  ~ body ~ "}"
 }
 function_return = {"return" ~ expression}
-struct_decl = {
-    "struct" ~ "{"  ~ ((identifier ~ ",")*) ~ identifier ~ "}"
-}
-struct_def = { identifier ~ (("{" ~ "}")|dict) }
-attribute = {identifier ~ "." ~ identifier}
 
 /* ########## FLOW CONTROL ########## */
-body = { statement+ }
 conditional_if = {
     "if" ~ expression ~ "{"
     ~ body ~ "}" ~
@@ -122,18 +166,60 @@ cycle_for = {
 }
 
 /* ########## OPERATIONS ########## */
-assignment = {(attribute|identifier) ~ "=" ~ (function|struct_decl|struct_def|protocol|expression)}
-function_call = {identifier ~ arguments}
-object_call = {identifier ~ "." ~ identifier ~ arguments}
+assignment = {(attribute|identifier) ~ "=" ~ (struct_def|list_init|expression)}
+function_call = {identifier ~ "(" ~ arguments ~ ")"}
 declaration = { "touch" ~ identifier }
 
-statement = {assignment|conditional_if|cycle|function_call|object_call|declaration|cast}
-program = _{ SOI ~ statement+ ~ EOI }
-
-
 /* ########## YGGDRASIL ########## */
-protocol = {
-    "Proto" ~ dict
+ygg_type = _{(request|reply|notif|msg|timer)}
+request = {"Request"}
+reply = {"Reply"}
+notif = {"Notification"}
+msg = {"Message"}
+timer = {"Timer"}
+
+timer_type =_{timer_periodic}
+timer_periodic = {"periodic"}
+
+proto_def = {
+    "Protocol" ~ identifier ~ "{"
+        ~ (proto_def_part ~ ",")*
+        ~ proto_def_part ~ (",")?
+    ~ "}"
 }
-object_type = {("Protocol"|"Response"|"Request"|"Timer")}
-object =  {object_type ~ dict}
+
+proto_def_part = _{proto_state|proto_init|proto_handler|proto_iface}
+proto_state = {"state" ~ ":" ~  struct_decl }
+
+proto_iface = {
+    "interface" ~ ":" ~ "{"
+        ~ (proto_iface_entry ~ ",")*
+        ~ proto_iface_entry ~ (",")?
+    ~ "}"
+}
+proto_iface_entry = _{proto_iface_consumer|proto_iface_producer}
+proto_iface_consumer = {"consumes" ~ ygg_type ~ identifier ~ number}
+proto_iface_producer = {"produces" ~ ygg_type ~ identifier ~ number ~ number}
+proto_init = {
+    "init" ~ ":" ~ anon_function
+}
+
+proto_handler = {
+    "handles" ~ ygg_type  ~ identifier ~ parameters  ~ "{"
+        ~ body
+    ~ "}"
+}
+
+ygg_statements = _{setup|send|notify}
+setup = {
+    "setup" ~ timer_type ~ "Timer" ~ identifier
+    ~ "(" ~ time_value ~ "," ~ time_value ~ ")"
+}
+
+send = {
+    "send" ~ identifier ~ address ~ identifier ~ "(" ~ arguments ~ ")"
+}
+
+notify = {
+    "notify" ~ identifier ~ "(" ~ arguments ~ ")"
+}
