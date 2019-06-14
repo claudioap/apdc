@@ -3,6 +3,7 @@ use std::fmt;
 use crate::yggl::environment::Environment;
 use crate::yggl::statement::Statement;
 use crate::yggl::annotation;
+use crate::yggl::protocol::Protocol;
 
 
 /// A program is the AST root.
@@ -15,6 +16,7 @@ pub struct Program {
     environment: Environment,
     statements: Vec<Statement>,
     includes: HashSet<Include>,
+    protocol: Option<Protocol>
 }
 
 #[allow(dead_code)]
@@ -24,6 +26,7 @@ impl  Program {
             environment: Environment::new(),
             statements: vec![],
             includes: HashSet::new(),
+            protocol: None
         }
     }
 
@@ -61,14 +64,10 @@ impl  Program {
             output.push('\n');
         }
         output.push_str("int main(){\n");
-        for statement in &self.statements {
-            let transpilation = statement.transpile(&self.environment).replace("\n", "\n    ");
-            if transpilation.is_empty() {
-                continue;
-            }
-            output.push_str("    ");
-            output.push_str(transpilation.as_str());
-            output.push_str("\n");
+        if let Some(protocol) = &self.protocol{
+            output.push_str(protocol.transpile().as_str());
+        }else {
+            panic!("Protocol not set");
         }
         output.push_str("    return 0;\n}");
         output
@@ -84,6 +83,13 @@ impl  Program {
 
     pub fn require_include(&mut self, include: Include) {
         self.includes.insert(include);
+    }
+
+    pub fn set_protocol(&mut self, protocol: Protocol){
+        if self.protocol.is_some(){
+            panic!("Attempted to set a program to have two protocols");
+        }
+        self.protocol = Some(protocol)
     }
 }
 

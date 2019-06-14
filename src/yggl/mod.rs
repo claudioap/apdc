@@ -7,3 +7,4 @@ pub mod environment;
 pub mod structure;
 pub mod program;
 pub mod annotation;
+pub mod protocol;

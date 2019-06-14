@@ -15,6 +15,7 @@ use crate::yggl::environment::{Variable, Environment, Symbol};
 use crate::yggl::function::*;
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
+use crate::yggl::protocol::Protocol;
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -71,11 +72,22 @@ impl Program {
     pub fn from(pairs: Pairs<Rule>) -> Result<Program, CompilationError> {
         let mut program = Program::new();
         for pair in pairs {
+            let env = program.get_env_mut();
             match pair.as_rule() {
-                Rule::statement => {
-                    let statement =
-                        Statement::from(pair, program.get_env_mut())?;
-                    program.add_statement(statement);
+                Rule::proto_def => {
+                    let protocol = Protocol::from(pair, env)?;
+                    program.set_protocol(protocol);
+                }
+                Rule::function => {
+                    let function = Function::from(pair, env)?;
+                    env.add_function(function);
+                }
+                Rule::struct_decl => {
+                    let struct_decl = StructDecl::from(pair)?;
+                    env.add_struct_decl(struct_decl);
+                }
+                Rule::assignment => {
+                    //TODO an assignment here is a constant
                 }
                 Rule::EOI => {}
                 _ => unimplemented!()
@@ -125,6 +137,10 @@ impl Statement {
                 let identifier = pair.as_str();
                 Ok(Statement::Declaration(env.declare(identifier)))
             }
+            Rule::function_return => {
+                let expression = Expression::from(pair.into_inner().next().unwrap(), &env)?;
+                Ok(Statement::Return(expression))
+            }
             _ => unreachable!("{}", pair)
         }
     }
@@ -163,31 +179,6 @@ impl Statement {
                     }
                     _ => unreachable!("Unknown assignment LHS")
                 }
-            }
-            Rule::function => {
-                match lhs_pair.as_rule() {
-                    Rule::identifier => {
-                        let identifier_str = lhs_pair.as_str().to_string();
-                        let function = Function::from(
-                            rhs_pair,
-                            identifier_str.to_string(),
-                            env)?;
-                        let function_rc = env.add_function(function);
-                        Ok(Statement::FunctionDef(function_rc))
-                    }
-                    Rule::attribute => {
-                        Err(CompilationError::new(
-                            0, 0, "".to_string(),
-                            format!("Direct function assignment (unimplemented).")))
-                    }
-                    _ => unreachable!("Unknown assignment LHS")
-                }
-            }
-            Rule::struct_decl => {
-                let identifier_str = lhs_pair.as_str().to_string();
-                let struct_decl = StructDecl::from(rhs_pair, identifier_str.to_string())?;
-                let struct_decl_rc = env.add_struct_decl(struct_decl);
-                Ok(Statement::StructDecl(struct_decl_rc))
             }
             Rule::struct_def => {
                 let struct_def = StructDef::from(rhs_pair, env)?;
@@ -551,37 +542,45 @@ impl Conditional {
 }
 
 impl Function {
-    pub fn from(pair: Pair<Rule>, name: String, env: &mut Environment)
-                -> Result<Function, CompilationError> {
+    pub fn from(pair: Pair<Rule>, env: &mut Environment) -> Result<Function, CompilationError> {
         let mut parameters: Option<Vec<Rc<Variable>>> = Option::None;
-        let mut statements = vec![];
         let mut function_env = Environment::new();
         function_env.push_static(env.get_static_symbols());
-        for pair in pair.into_inner() {
-            match pair.as_rule() {
-                Rule::parameters => {
-                    parameters = Some(Function::read_parameters(pair, &mut function_env)?);
-                }
-                Rule::statement => {
-                    let statement = Statement::from(pair, &mut function_env)?;
-                    statements.push(statement);
-                }
-                Rule::function_return => {
-                    let expression = Expression::from(
-                        pair.into_inner().next().unwrap(), &function_env)?;
-                    statements.push(Statement::Return(expression));
-                }
-                _ => unreachable!()
-            }
+        let mut inner = pair.into_inner();
+        let mut pair = inner.next().unwrap();
+        if pair.as_rule() != Rule::identifier {
+            panic!()
         }
-        if statements.is_empty() {
-            return Err(
-                CompilationError::new(
-                    0,
-                    0,
-                    "".to_string(),
-                    "Function definition without statements".to_string()));
+        let name = pair.as_str().to_string();
+        pair = inner.next().unwrap();
+        if pair.as_rule() == Rule::parameters {
+            parameters = Some(Function::read_parameters(pair, &mut function_env)?);
+            pair = inner.next().unwrap();
         }
+        let statements = Function::read_body(pair, &mut function_env)?;
+
+        if let Some(parameters_vec) = parameters {
+            Function::new(function_env, name, parameters_vec, statements)
+        } else {
+            Function::new(function_env, name, vec!(), statements)
+        }
+    }
+
+    pub fn anonymous_from(pair: Pair<Rule>, env: &mut Environment, name: String)
+                          -> Result<Function, CompilationError> {
+        let mut parameters: Option<Vec<Rc<Variable>>> = Option::None;
+        let mut function_env = Environment::new();
+        function_env.push_static(env.get_static_symbols());
+        let mut inner = pair.into_inner();
+        let mut first_pair = inner.next().unwrap();
+        let body = if first_pair.as_rule() == Rule::parameters {
+            parameters = Some(Function::read_parameters(first_pair, &mut function_env)?);
+            inner.next().unwrap()
+        } else {
+            first_pair
+        };
+        let statements = Function::read_body(body, &mut function_env)?;
+
         if let Some(parameters_vec) = parameters {
             Function::new(function_env, name, parameters_vec, statements)
         } else {
@@ -623,6 +622,29 @@ impl Function {
         Ok(arguments)
     }
 
+    fn read_body(pair: Pair<Rule>, mut function_env: &mut Environment)
+                 -> Result<Vec<Statement>, CompilationError> {
+        let mut statements = vec![];
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::statement => {
+                    let statement = Statement::from(pair, &mut function_env)?;
+                    statements.push(statement);
+                }
+                _ => unreachable!(format!("{}", pair))
+            }
+        }
+        if statements.is_empty() {
+            return Err(
+                CompilationError::new(
+                    0,
+                    0,
+                    "".to_string(),
+                    "Function definition without statements".to_string()));
+        }
+        Ok(statements)
+    }
+
     pub fn parse_call(pair: Pair<Rule>, env: &Environment) -> Result<Statement, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let identifier = inner_rules.next().unwrap().as_str();
@@ -654,13 +676,37 @@ impl Function {
 }
 
 impl StructDecl {
-    pub fn from(pair: Pair<Rule>, name: String) -> Result<StructDecl, CompilationError> {
+    pub fn from(pair: Pair<Rule>) -> Result<StructDecl, CompilationError> {
+        let mut inner = pair.into_inner();
+        let first_pair = inner.next().unwrap();
+        if first_pair.as_rule() == Rule::identifier {
+            let name = first_pair.as_str().to_string();
+            let attributes = StructDecl::read_body(inner.next().unwrap());
+            Ok(StructDecl::new(name, attributes))
+        } else {
+            panic!();
+        }
+    }
+
+    pub fn anonymous_from(pair: Pair<Rule>, name: String) -> Result<StructDecl, CompilationError> {
+        let mut inner = pair.into_inner();
+        let first_pair = inner.next().unwrap();
+        if first_pair.as_rule() == Rule::struct_decl_body {
+            let attributes = StructDecl::read_body(first_pair);
+            Ok(StructDecl::new(name, attributes))
+        } else {
+            panic!();
+        }
+    }
+
+    fn read_body(pair: Pair<Rule>) -> Vec<Rc<Attribute>> {
         let mut attributes = vec!();
-        for pair in pair.into_inner() {
+        let mut inner = pair.into_inner();
+        for pair in inner {
             let attribute = Attribute::new(pair.as_str().to_string(), None);
             attributes.push(Rc::new(attribute));
         }
-        Ok(StructDecl::new(name, attributes))
+        attributes
     }
 }
 
@@ -678,5 +724,48 @@ impl StructDef {
                 "".to_string(),
                 format!("Attempted to build a struct from non-struct symbol {}", identifier)))
         }
+    }
+}
+
+impl Protocol {
+    pub fn from(pair: Pair<Rule>, env: &mut Environment) -> Result<Protocol, CompilationError> {
+        let mut inner = pair.into_inner();
+        let name = inner.next().unwrap().as_str().to_string();
+        let mut state_decl: Option<Rc<StructDecl>> = None;
+        let mut init_func: Option<Rc<Function>> = None;
+        for pair in inner {
+            match pair.as_rule() {
+                Rule::proto_state => {
+                    let struct_decl =
+                        StructDecl::anonymous_from(
+                            pair.into_inner().next().unwrap(),
+                            format!("{}_proto_state", name))?;
+                    state_decl = Some(env.add_struct_decl(struct_decl));
+                }
+                Rule::proto_init => {
+                    let init = Function::anonymous_from(
+                        pair.into_inner().next().unwrap(),
+                        env,
+                        format!("{}_proto_init", name))?;
+                    init_func = Some(env.add_function(init));
+                }
+                Rule::proto_iface => {
+                    unimplemented!()
+                }
+                Rule::proto_handler => {
+                    unimplemented!()
+                }
+                _ => unreachable!()
+            }
+        }
+        if state_decl.is_none() || init_func.is_none() {
+            return Err(CompilationError::new(
+                0, 0, "".to_string(),
+                "Protocol declaration without a state or initialization.".to_string()));
+        }
+
+        let protocol = Protocol::new(name, state_decl.unwrap(), init_func.unwrap());
+
+        Ok(protocol)
     }
 }
