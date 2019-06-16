@@ -9,7 +9,7 @@ reserved_words = {
 
 
 statement = {assignment|conditional_if|cycle|function_return|declaration|cast|ygg_statements}
-program = _{ SOI ~ (proto_def|function|struct_decl|assignment)+ ~ EOI }
+program = _{ SOI ~ (proto_def|function|struct_decl|constant_assignment)+ ~ EOI }
 
 /* ########## LITERALS ########## */
 number = @{
@@ -87,6 +87,9 @@ nincl =  {"not in"}
 /* ########## EXPRESSIONS ########## */
 expression = {term ~ (binop ~ term)*}
 term = _{ evaluable | "(" ~ expression ~ ")" }
+
+constant_expression = {term ~ (binop ~ term)*}
+constant_term = _{ value | "(" ~ constant_expression ~ ")" }
 
 /* ########## COMPOSITE TYPES ########## */
 
@@ -167,6 +170,7 @@ cycle_for = {
 
 /* ########## OPERATIONS ########## */
 assignment = {(attribute|identifier) ~ "=" ~ (struct_def|list_init|expression)}
+constant_assignment = {identifier ~ "=" ~ constant_expression}
 function_call = {identifier ~ "(" ~ arguments ~ ")"}
 declaration = { "touch" ~ identifier }
 
@@ -188,7 +192,7 @@ proto_def = {
     ~ "}"
 }
 
-proto_def_part = _{proto_state|proto_init|proto_handler|proto_iface}
+proto_def_part = _{proto_id|proto_state|proto_init|proto_loop|proto_handler|proto_iface}
 proto_state = {"state" ~ ":" ~  struct_decl }
 
 proto_iface = {
@@ -200,8 +204,17 @@ proto_iface = {
 proto_iface_entry = _{proto_iface_consumer|proto_iface_producer}
 proto_iface_consumer = {"consumes" ~ ygg_type ~ identifier ~ number}
 proto_iface_producer = {"produces" ~ ygg_type ~ identifier ~ number ~ number}
+
+proto_id = {
+    "id" ~ ":" ~ positive_integer
+}
+
 proto_init = {
     "init" ~ ":" ~ anon_function
+}
+
+proto_loop = {
+    "loop" ~ ":" ~ anon_function
 }
 
 proto_handler = {

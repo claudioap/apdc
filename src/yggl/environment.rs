@@ -72,6 +72,27 @@ impl Environment {
         }
     }
 
+
+    pub fn set_defines(&mut self, identifier: &str, constant: Constant) {
+        let scope = self.scopes.front_mut().unwrap();
+        // TODO check if already defined IN ANY SCOPE
+        // TODO assert that vars cannot shadow this identifier.
+        scope.insert(
+            identifier.to_string(),
+            Symbol::Define(Define::new(identifier.to_string(), constant)));
+    }
+
+
+    pub fn get_defines(&self) -> Vec<Define> {
+        let mut set = vec!();
+        for symbol in self.scopes.front().unwrap().values() {
+            if let Symbol::Define(ref define) = symbol {
+                set.push(define.clone());
+            }
+        }
+        set
+    }
+
     /// Obtains every function that is present in this environment
     pub fn get_functions(&self) -> Vec<Rc<Function>> {
         let mut set = vec!();
@@ -162,8 +183,11 @@ impl Environment {
                         function.get_name().to_string(),
                         Symbol::Function(function));
                 }
-                Symbol::Constant(_) =>
-                    unimplemented!("Static constants not implemented.")
+                Symbol::Define(define) => {
+                    static_scope.insert(
+                        define.get_identifier().to_string(),
+                        Symbol::Define(define));
+                }
             }
         }
     }
@@ -209,6 +233,26 @@ impl Environment {
         } else {
             None
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct Define {
+    id: String,
+    value: Constant,
+}
+
+impl Define {
+    pub fn new(id: String, value: Constant) -> Define {
+        Define { id, value }
+    }
+
+    pub fn get_identifier(&self) -> &str {
+        self.id.as_str()
+    }
+
+    pub fn value(&self) -> Constant {
+        self.value.clone()
     }
 }
 
@@ -273,7 +317,7 @@ impl fmt::Display for Variable {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub enum Symbol {
-    Constant(Constant),
+    Define(Define),
     Variable(Rc<Variable>),
     Function(Rc<Function>),
     StructDecl(Rc<StructDecl>),

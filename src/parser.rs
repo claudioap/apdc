@@ -88,8 +88,11 @@ impl Program {
                     let struct_decl = StructDecl::from(pair)?;
                     env.add_struct_decl(struct_decl);
                 }
-                Rule::assignment => {
-                    //TODO an assignment here is a constant
+                Rule::constant_assignment => {
+                    let mut inner = pair.into_inner();
+                    let identifier = inner.next().unwrap().as_str();
+                    let expression = Expression::from(inner.next().unwrap(), env)?;
+                    env.set_defines(identifier, expression.eval(env));
                 }
                 Rule::EOI => {}
                 _ => unimplemented!()
@@ -216,7 +219,7 @@ impl Statement {
                             Symbol::Variable(var) => {
                                 Ok(Statement::Assignment(Rc::clone(&var), expression))
                             }
-                            Symbol::Constant(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                            Symbol::Define(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
                                 Err(CompilationError::new(
                                     0, 0, "".to_string(),
                                     format!("Attribution to constant field.")))
@@ -243,7 +246,7 @@ impl Statement {
                             Symbol::Variable(var) => {
                                 Ok(Statement::StructDef(Rc::clone(&var), struct_def_rc))
                             }
-                            Symbol::Constant(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                            Symbol::Define(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
                                 Err(CompilationError::new(
                                     0, 0, "".to_string(),
                                     format!("Attribution to constant field.")))
@@ -396,7 +399,7 @@ impl Expression {
                     }
                     Rule::identifier => {
                         match env.get(pair.as_str()) {
-                            Some(Symbol::Constant(c)) => Ok(Expression::Constant(c.clone())),
+                            Some(Symbol::Define(c)) => Ok(Expression::Constant(c.value())),
                             Some(Symbol::Variable(var)) => Ok(Expression::Variable(var.clone())),
                             _ => Err(CompilationError::new(
                                 0, 0, "".to_string(),
@@ -782,12 +785,18 @@ impl Protocol {
     pub fn from(pair: Pair<Rule>, env: &mut Environment) -> Result<Protocol, CompilationError> {
         let mut inner = pair.into_inner();
         let name = inner.next().unwrap().as_str().to_string();
+        let mut proto_id: Option<u32> = None;
         let mut state_decl: Option<Rc<StructDecl>> = None;
         let mut init_func: Option<Rc<Function>> = None;
+        let mut loop_func: Option<Rc<Function>> = None;
         let mut interfaces: Vec<Interface> = vec![];
         let mut handlers: Vec<Handler> = vec![];
         for pair in inner {
             match pair.as_rule() {
+                Rule::proto_id => {
+                    let id = pair.into_inner().next().unwrap().as_str().parse::<u32>().unwrap();
+                    proto_id = Some(id);
+                }
                 Rule::proto_state => {
                     let struct_decl =
                         StructDecl::anonymous_from(
@@ -801,6 +810,13 @@ impl Protocol {
                         env,
                         format!("{}_proto_init", name))?;
                     init_func = Some(env.add_function(init));
+                }
+                Rule::proto_loop => {
+                    let init = Function::anonymous_from(
+                        pair.into_inner().next().unwrap(),
+                        env,
+                        format!("{}_proto_loop", name))?;
+                    loop_func = Some(env.add_function(init));
                 }
                 Rule::proto_iface => {
                     let mut new_interfaces = Protocol::read_interfaces(pair, env)?;
@@ -819,10 +835,11 @@ impl Protocol {
         }
 
         let protocol = Protocol::new(
+            proto_id.unwrap(),
             name,
             state_decl.unwrap(),
             init_func.unwrap(),
-            interfaces);
+            loop_func.unwrap());
 
         Ok(protocol)
     }

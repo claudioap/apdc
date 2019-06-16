@@ -40,16 +40,18 @@ impl Handler {
 }
 
 pub struct Protocol {
+    id: u32,
     name: String,
     state: Rc<StructDecl>,
     init: Rc<Function>,
+    main_loop: Rc<Function>,
     interfaces: Vec<Interface>,
 }
 
 impl Protocol {
-    pub fn new(name: String, state: Rc<StructDecl>, init: Rc<Function>, interfaces: Vec<Interface>)
+    pub fn new(id: u32, name: String, state: Rc<StructDecl>, init: Rc<Function>, main_loop: Rc<Function>)
                -> Protocol {
-        Protocol { name, state, init, interfaces }
+        Protocol { id, name, state, init, main_loop, interfaces:vec![] }
     }
 
     pub fn transpile(&self) -> String {

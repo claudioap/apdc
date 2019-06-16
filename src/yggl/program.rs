@@ -53,6 +53,14 @@ impl  Program {
         for include in self.environment.get_includes() {
             output.push_str(format!("{}\n", include).as_str());
         }
+        output.push_str("\n// Defines\n");
+        for define in self.environment.get_defines() {
+            output.push_str(
+                format!("#define {} {}\n",
+                        define.get_identifier(),
+                        define.value()
+                ).as_str());
+        }
         output.push_str("\n// Functions\n");
         for function in &self.environment.get_functions() {
             output.push_str(function.transpile().as_str());
