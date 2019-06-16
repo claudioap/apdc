@@ -6,6 +6,8 @@ use crate::yggl::expression::Expression;
 use crate::yggl::function::{FunctionCall, Function};
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
+use crate::yggl::timer::Timer;
+use crate::yggl::networking::Address;
 
 /// Statements are standalone instructions.
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
@@ -24,11 +26,9 @@ pub enum Statement {
     Print(Vec<Expression>),
     Return(Expression),
     AttributeAssignment(Rc<Variable>, Rc<Attribute>, Expression),
-//    ProtocolDef(),
-//    TimerInit(),
-//    TimerAction(),
-//    MessageInit(),
-//    MessageAttribute(),
+    Setup(Rc<Variable>, Timer),
+    Send(Rc<Variable>, Address, Vec<Expression>),
+    Notify(String, Rc<StructDef>),
 }
 
 impl Statement {
@@ -108,6 +108,15 @@ impl Statement {
             }
             Statement::StructDecl(_) | Statement::FunctionDef(_) => {
                 "".to_string()
+            }
+            Statement::Setup(_, _) => {
+                "TODO SETUP".to_string()
+            }
+            Statement::Send(_, _, _) => {
+                "TODO SEND".to_string()
+            }
+            Statement::Notify(_, _) => {
+                "TODO NOTIFY".to_string()
             }
             _ => { unimplemented!() }
         }

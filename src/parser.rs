@@ -15,7 +15,9 @@ use crate::yggl::environment::{Variable, Environment, Symbol};
 use crate::yggl::function::*;
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
-use crate::yggl::protocol::Protocol;
+use crate::yggl::protocol::{Protocol, Interface, Handler, YggType};
+use crate::yggl::timer::{TimerType, Timer, TimeUnit};
+use crate::yggl::networking::Address;
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -140,6 +142,55 @@ impl Statement {
             Rule::function_return => {
                 let expression = Expression::from(pair.into_inner().next().unwrap(), &env)?;
                 Ok(Statement::Return(expression))
+            }
+            Rule::setup => {
+                let mut inner = pair.into_inner();
+                let ttype = match inner.next().unwrap().as_str() {
+                    "periodic" => {
+                        TimerType::Periodic
+                    }
+                    _ => unimplemented!()
+                };
+                let identifier = inner.next().unwrap().as_str().to_string();
+                let wait = TimeUnit::read_value(inner.next().unwrap());
+                let period = TimeUnit::read_value(inner.next().unwrap());
+                let timer = Timer::new(ttype, wait, period);
+                let var = env.declare(format!("{}_timer", identifier).as_str());
+                Ok(Statement::Setup(var, timer))
+            }
+            Rule::notify => {
+                let mut inner = pair.into_inner();
+                let identifier = inner.next().unwrap().as_str();
+                let arguments = Function::read_arguments(inner.next().unwrap(), env)?;
+                let struct_decl = match env.get(identifier) {
+                    Some(Symbol::StructDecl(decl)) => decl,
+                    Some(_) => return Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("{} type mismatch", identifier))),
+                    None =>
+                        return Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            format!("{} not found", identifier)))
+                };
+                let notif_definition = StructDef::new(struct_decl, HashMap::new());
+                Ok(Statement::Notify(identifier.to_string(), Rc::new(notif_definition)))
+            }
+            Rule::send => {
+                let mut inner = pair.into_inner();
+                let identifier = inner.next().unwrap().as_str();
+                let var = match env.get(identifier) {
+                    Some(Symbol::Variable(var)) => var,
+                    Some(_) => return Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("{} type mismatch", identifier))),
+                    None =>
+                        return Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            format!("{} not found", identifier)))
+                };
+                let address = Address::from(inner.next().unwrap())?;
+                let arguments = Function::read_arguments(inner.next().unwrap(), env)?;
+                Ok(Statement::Send(var, address, arguments))
             }
             _ => unreachable!("{}", pair)
         }
@@ -733,6 +784,8 @@ impl Protocol {
         let name = inner.next().unwrap().as_str().to_string();
         let mut state_decl: Option<Rc<StructDecl>> = None;
         let mut init_func: Option<Rc<Function>> = None;
+        let mut interfaces: Vec<Interface> = vec![];
+        let mut handlers: Vec<Handler> = vec![];
         for pair in inner {
             match pair.as_rule() {
                 Rule::proto_state => {
@@ -750,10 +803,11 @@ impl Protocol {
                     init_func = Some(env.add_function(init));
                 }
                 Rule::proto_iface => {
-                    unimplemented!()
+                    let mut new_interfaces = Protocol::read_interfaces(pair, env)?;
+                    interfaces.append(&mut new_interfaces);
                 }
                 Rule::proto_handler => {
-                    unimplemented!()
+                    let handler = Protocol::read_handler(&name, pair, env)?;
                 }
                 _ => unreachable!()
             }
@@ -764,8 +818,116 @@ impl Protocol {
                 "Protocol declaration without a state or initialization.".to_string()));
         }
 
-        let protocol = Protocol::new(name, state_decl.unwrap(), init_func.unwrap());
+        let protocol = Protocol::new(
+            name,
+            state_decl.unwrap(),
+            init_func.unwrap(),
+            interfaces);
 
         Ok(protocol)
+    }
+
+    pub fn read_interfaces(pair: Pair<Rule>, env: &mut Environment)
+                           -> Result<Vec<Interface>, CompilationError> {
+        let mut interfaces = vec![];
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::proto_iface_producer => {
+                    let mut inner = pair.into_inner();
+                    let ytype = Protocol::read_ygg_type(inner.next().unwrap());
+                    let identifier = inner.next().unwrap().as_str();
+                    if let Symbol::Variable(var) = env.get(identifier).unwrap() {
+                        interfaces.push(Interface::Producer(ytype, var, 1, 1))
+                    } else {
+                        return Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            "TODO Undefined".to_string()));
+                    }
+                }
+                Rule::proto_iface_consumer => {
+                    let mut inner = pair.into_inner();
+                    let ytype = Protocol::read_ygg_type(inner.next().unwrap());
+                    let identifier = inner.next().unwrap().as_str();
+                    if let Symbol::Variable(var) = env.get(identifier).unwrap() {
+                        interfaces.push(Interface::Consumer(ytype, var, 1))
+                    } else {
+                        return Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            "TODO Undefined".to_string()));
+                    }
+                }
+                _ => unreachable!()
+            }
+        }
+        Ok(interfaces)
+    }
+
+    pub fn read_handler(proto_name: &str, pair: Pair<Rule>, env: &mut Environment)
+                        -> Result<Handler, CompilationError> {
+        let mut inner = pair.into_inner();
+        let ytype = Protocol::read_ygg_type(inner.next().unwrap());
+        let identifier = inner.next().unwrap().as_str().to_string();
+        let function = Function::anonymous_from(
+            inner.next().unwrap(), env,
+            format!("{}_{}_{}_handler", proto_name, ytype, identifier))?;
+        let function_rc = env.add_function(function);
+        Ok(Handler::new(identifier, ytype, function_rc))
+    }
+
+    pub fn read_ygg_type(pair: Pair<Rule>) -> YggType {
+        match pair.as_rule() {
+            Rule::request => {
+                YggType::Request
+            }
+            Rule::reply => {
+                YggType::Reply
+            }
+            Rule::message => {
+                YggType::Message
+            }
+            Rule::timer => {
+                YggType::Timer
+            }
+            _ => unreachable!()
+        }
+    }
+}
+
+impl TimeUnit {
+    pub fn read_value(pair: Pair<Rule>) -> u64 {
+        if pair.as_str() == "0" {
+            return 0;
+        }
+        let mut value = 0u64;
+        let mut value_part = 0u64;
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::positive_integer => {
+                    value_part = pair.as_str().parse::<u64>().unwrap();
+                    continue;
+                }
+                Rule::time_unit => {
+                    let unit = match pair.into_inner().next().unwrap().as_rule() {
+                        Rule::hour => TimeUnit::Hour,
+                        Rule::minute => TimeUnit::Minute,
+                        Rule::second => TimeUnit::Second,
+                        Rule::milli => TimeUnit::Milli,
+                        _ => unreachable!()
+                    };
+                    value += unit.scale(value_part);
+                }
+                _ => unreachable!()
+            }
+        }
+        value
+    }
+}
+
+impl Address {
+    pub fn from(pair: Pair<Rule>) -> Result<Address, CompilationError> {
+        match pair.as_rule() {
+            Rule::broadcast_address => Ok(Address::Broadcast),
+            _ => unimplemented!()
+        }
     }
 }

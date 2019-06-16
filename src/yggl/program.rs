@@ -65,7 +65,9 @@ impl  Program {
         }
         output.push_str("int main(){\n");
         if let Some(protocol) = &self.protocol{
-            output.push_str(protocol.transpile().as_str());
+            output.push('\t');
+            output.push_str(protocol.transpile().replace('\n', "\n\t").as_str());
+            output.push('\n');
         }else {
             panic!("Protocol not set");
         }

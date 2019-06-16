@@ -32,7 +32,7 @@ inner = @{ char* }
 string = ${ "\"" ~ inner ~ "\"" }
 
 time_value = {((positive_integer ~ time_unit)|"0")+}
-time_unit = _{hour|minute|second|milli}
+time_unit = {hour|minute|second|milli}
 hour = {"h"}
 minute = {"m"}
 second = {"s"}
@@ -171,11 +171,11 @@ function_call = {identifier ~ "(" ~ arguments ~ ")"}
 declaration = { "touch" ~ identifier }
 
 /* ########## YGGDRASIL ########## */
-ygg_type = _{(request|reply|notif|msg|timer)}
+ygg_type = _{(request|reply|notification|message|timer)}
 request = {"Request"}
 reply = {"Reply"}
-notif = {"Notification"}
-msg = {"Message"}
+notification = {"Notification"}
+message = {"Message"}
 timer = {"Timer"}
 
 timer_type =_{timer_periodic}
@@ -205,7 +205,10 @@ proto_init = {
 }
 
 proto_handler = {
-    "handles" ~ ygg_type  ~ identifier ~ parameters  ~ "{"
+    "handles" ~ ygg_type ~ identifier ~ handler_function
+}
+handler_function = { // Separated so that function code can be reused
+     "(" ~ parameters? ~ ")" ~ "{"
         ~ body
     ~ "}"
 }
@@ -217,7 +220,7 @@ setup = {
 }
 
 send = {
-    "send" ~ identifier ~ address ~ identifier ~ "(" ~ arguments ~ ")"
+    "send" ~ identifier ~ address ~ "(" ~ arguments ~ ")"
 }
 
 notify = {
