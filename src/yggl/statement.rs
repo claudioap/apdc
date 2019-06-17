@@ -8,12 +8,12 @@ use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 use crate::yggl::timer::Timer;
 use crate::yggl::networking::Address;
+use crate::yggl::foreign::ForeignFunctionCall;
 
 /// Statements are standalone instructions.
 /// They are meaningful by themselves, as long as the current environment is able to handle them.
 
 pub enum Statement {
-    // TODO String -> Rc<Variable>, Constants?!?
     Declaration(Rc<Variable>),
     Allocation(Rc<Variable>, Rc<StructDecl>),
     Assignment(Rc<Variable>, Expression),
@@ -21,6 +21,7 @@ pub enum Statement {
     StructDef(Rc<Variable>, Rc<StructDef>),
     FunctionDef(Rc<Function>),
     Call(FunctionCall),
+    ForeignCall(Box<ForeignFunctionCall>),
     Conditional(Conditional),
     Cycle(Cycle),
     Print(Vec<Expression>),
@@ -29,6 +30,7 @@ pub enum Statement {
     Setup(Rc<Variable>, Timer),
     Send(Rc<Variable>, Address, Vec<Expression>),
     Notify(String, Rc<StructDef>),
+    Composite(Vec<Statement>),
 }
 
 impl Statement {
@@ -85,6 +87,7 @@ impl Statement {
                             }
                             DataType::Struct(_) => panic!("Attempted to print a struct..."),
                             DataType::Reference(_) => panic!("Attempted to print a reference..."),
+                            _ => unimplemented!()
                         }
                         expressions_string.push_str(",");
                         expressions_string.push_str(expression.transpile().as_str());
@@ -117,6 +120,9 @@ impl Statement {
             }
             Statement::Notify(_, _) => {
                 "TODO NOTIFY".to_string()
+            }
+            Statement::ForeignCall(call) => {
+                call.transpile()
             }
             _ => { unimplemented!() }
         }

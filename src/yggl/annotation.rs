@@ -1,5 +1,32 @@
 use std::rc::Rc;
 use crate::yggl::statement::Statement;
+use crate::yggl::foreign::{ForeignFunctionCall, AppCreateCall, RuntimeStartCall};
+
+pub fn expand_statements(statements: &mut Vec<Statement>) {
+    let mut offset = 0; // First loop acts as index, second acts as deviation from index
+    let mut composite_indexes = vec![];
+    for statement in &*statements {
+        if let Statement::Composite(_) = statement {
+            composite_indexes.push(offset)
+        }
+        offset += 1;
+    }
+    offset = 0; // Reset offset
+
+    for index in composite_indexes {
+        let statement = statements.remove(index - offset);
+        if let Statement::Composite(mut vec) = statement {
+            vec.reverse();
+            for statement in vec {
+                statements.insert(index, statement);
+                offset += 1; // Increment to compensate the inserted instruction
+            }
+            offset -= 1; // Decrement to compensate the removed instruction
+        } else {
+            panic!();
+        }
+    }
+}
 
 pub fn insert_declarations(statements: &mut Vec<Statement>) {
     let mut index = 0;
@@ -25,7 +52,7 @@ pub fn insert_allocations(statements: &mut Vec<Statement>) {
     let mut index = 0;
     let mut allocations = vec![];
     for statement in &*statements {
-        if let Statement::StructDef(var, struct_def)  = statement {
+        if let Statement::StructDef(var, struct_def) = statement {
             allocations.push((
                 index + 1,
                 Statement::Allocation(
@@ -42,7 +69,7 @@ pub fn insert_allocations(statements: &mut Vec<Statement>) {
     }
 }
 
-pub fn propagate_types(statements: &Vec<Statement>){
+pub fn propagate_types(statements: &Vec<Statement>) {
     loop {
         for statement in &*statements {
             match statement {

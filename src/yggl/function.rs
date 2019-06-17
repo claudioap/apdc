@@ -3,9 +3,9 @@ use std::cell::RefCell;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::statement::Statement;
 use crate::yggl::data::{DataType, Constant};
-use crate::yggl::expression::Expression;
 use crate::yggl::annotation;
 use crate::parser::CompilationError;
+use crate::yggl::expression::Expression;
 
 /// The concept of a function, which is treated like subprogram within the program.
 /// Functions have their own environments. Outside variables aren't accessible from the inside,
@@ -22,6 +22,7 @@ pub struct Function {
 impl Function {
     pub fn new(environment: Environment, name: String, parameters: Vec<Rc<Variable>>,
                mut statements: Vec<Statement>) -> Result<Function, CompilationError> {
+        annotation::expand_statements(&mut statements);
         annotation::propagate_types(&statements);
         annotation::insert_declarations(&mut statements);
         let function = Function {
@@ -87,7 +88,10 @@ impl Function {
         result.push_str(format!("{} {}(", rtype, self.name).as_str());
         for parameter in &self.parameters {
             let identifier = parameter.get_identifier();
-            let dtype = parameter.data_type().expect(format!("Parameter {} unknown type", identifier).as_str());
+            let dtype = parameter.data_type()
+                .expect(format!(
+                    "Parameter {} has unknown type ({})",
+                    identifier, self.name).as_str());
             result.push_str(dtype.transpile().as_str());
             result.push(' ');
             result.push_str(identifier);

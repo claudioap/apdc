@@ -2,6 +2,7 @@ use std::{fmt, ops};
 use std::rc::Rc;
 use crate::yggl::structure::{StructDef, StructDecl};
 use std::cmp::Ordering;
+use crate::yggl::foreign::ForeignType;
 
 #[allow(dead_code)]
 #[derive(Clone, PartialEq, Hash, Debug)]
@@ -14,6 +15,8 @@ pub enum DataType {
     Function,
     Struct(Rc<StructDecl>),
     Reference(Box<DataType>),
+    Foreign(ForeignType),
+    Generic(Option<Box<DataType>>),// AKA void*
 }
 
 
@@ -29,6 +32,7 @@ impl DataType {
                 panic!("Not meant to be transpiled."),
             DataType::Struct(ref decl) => format!("struct {}", decl.get_name()),
             DataType::Reference(ref dtype) => format!("{} *", dtype.transpile()),
+            _ => unimplemented!()
         }
     }
 

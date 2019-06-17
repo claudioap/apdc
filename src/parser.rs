@@ -18,6 +18,7 @@ use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 use crate::yggl::protocol::{Protocol, Interface, Handler, YggType};
 use crate::yggl::timer::{TimerType, Timer, TimeUnit};
 use crate::yggl::networking::Address;
+use crate::yggl::foreign::Message;
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -187,13 +188,15 @@ impl Statement {
                         0, 0, "".to_string(),
                         format!("{} type mismatch", identifier))),
                     None =>
-                        return Err(CompilationError::new(
-                            0, 0, "".to_string(),
-                            format!("{} not found", identifier)))
+                        env.declare(identifier)
                 };
+                let message = Message::new(var);
                 let address = Address::from(inner.next().unwrap())?;
                 let arguments = Function::read_arguments(inner.next().unwrap(), env)?;
-                Ok(Statement::Send(var, address, arguments))
+                let statements = vec![
+                    Statement::ForeignCall(Box::new(message.get_init_call(address))),
+                    Statement::ForeignCall(Box::new(message.get_dispatch_call()))];
+                Ok(Statement::Composite(statements))
             }
             _ => unreachable!("{}", pair)
         }
@@ -755,8 +758,7 @@ impl StructDecl {
 
     fn read_body(pair: Pair<Rule>) -> Vec<Rc<Attribute>> {
         let mut attributes = vec!();
-        let mut inner = pair.into_inner();
-        for pair in inner {
+        for pair in pair.into_inner() {
             let attribute = Attribute::new(pair.as_str().to_string(), None);
             attributes.push(Rc::new(attribute));
         }
@@ -853,24 +855,38 @@ impl Protocol {
                     let mut inner = pair.into_inner();
                     let ytype = Protocol::read_ygg_type(inner.next().unwrap());
                     let identifier = inner.next().unwrap().as_str();
-                    if let Symbol::Variable(var) = env.get(identifier).unwrap() {
-                        interfaces.push(Interface::Producer(ytype, var, 1, 1))
-                    } else {
-                        return Err(CompilationError::new(
-                            0, 0, "".to_string(),
-                            "TODO Undefined".to_string()));
+                    match env.get(identifier) {
+                        Some(Symbol::Variable(var)) => {
+                            interfaces.push(Interface::Producer(ytype, var, 1, 1));
+                        }
+                        Some(_) => {
+                            return Err(CompilationError::new(
+                                0, 0, "".to_string(),
+                                "TODO Undefined".to_string()));
+                        }
+                        None => {
+                            let var = env.declare(identifier);
+                            interfaces.push(Interface::Producer(ytype, var, 1, 1));
+                        }
                     }
                 }
                 Rule::proto_iface_consumer => {
                     let mut inner = pair.into_inner();
                     let ytype = Protocol::read_ygg_type(inner.next().unwrap());
                     let identifier = inner.next().unwrap().as_str();
-                    if let Symbol::Variable(var) = env.get(identifier).unwrap() {
-                        interfaces.push(Interface::Consumer(ytype, var, 1))
-                    } else {
-                        return Err(CompilationError::new(
-                            0, 0, "".to_string(),
-                            "TODO Undefined".to_string()));
+                    match env.get(identifier) {
+                        Some(Symbol::Variable(var)) => {
+                            interfaces.push(Interface::Consumer(ytype, var, 1));
+                        }
+                        Some(_) => {
+                            return Err(CompilationError::new(
+                                0, 0, "".to_string(),
+                                "TODO Undefined".to_string()));
+                        }
+                        None => {
+                            let var = env.declare(identifier);
+                            interfaces.push(Interface::Consumer(ytype, var, 1));
+                        }
                     }
                 }
                 _ => unreachable!()
@@ -905,7 +921,10 @@ impl Protocol {
             Rule::timer => {
                 YggType::Timer
             }
-            _ => unreachable!()
+            Rule::notification => {
+                YggType::Notification
+            }
+            _ => unreachable!("{}", pair)
         }
     }
 }
