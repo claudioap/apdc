@@ -1,7 +1,7 @@
 use std::rc::Rc;
-use crate::yggl::data::{DataType, Constant};
+use crate::yggl::data::DataType;
 use crate::yggl::structure::StructDecl;
-use crate::yggl::protocol::Protocol;
+use crate::yggl::protocol::ProtocolDef;
 use crate::yggl::expression::Expression;
 use crate::yggl::function::Function;
 use crate::yggl::environment::Variable;
@@ -10,17 +10,13 @@ use crate::yggl::networking::Address;
 // ############### Foreign types ###############
 #[derive(Clone, PartialEq, Hash, Debug)]
 pub enum ForeignType {
-    //app_def
-    AppDef,
     //proto_def
     ProtoDef,
-    //queue_t
-    Queue,
     // uuid_t
     UUID,
     // list
     List,
-    YggTimer,
+    Timer,
     Message,
     Request,
     Response,
@@ -29,14 +25,6 @@ pub enum ForeignType {
 
 pub trait ForeignObject {
     fn datatype(&self) -> DataType;
-}
-
-pub struct AppDef {}
-
-impl ForeignObject for AppDef {
-    fn datatype(&self) -> DataType {
-        DataType::Reference(Box::new(DataType::Foreign(ForeignType::AppDef)))
-    }
 }
 
 pub struct ProtoDef {}
@@ -93,148 +81,10 @@ pub trait ForeignFunctionCall {
     }
 }
 
-// --------------- Runtime ---------------
-pub struct RuntimeStartCall {}
-
-impl ForeignFunctionCall for RuntimeStartCall {
-    fn get_name(&self) -> &str {
-        "ygg_runtime_start"
-    }
-
-    fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![]
-    }
-
-    fn get_args(&self) -> Vec<Expression> {
-        vec![]
-    }
-
-    fn return_type(&self) -> Option<DataType> {
-        None
-    }
-}
-
-pub struct RegisterProtocolCall {}
-
-impl ForeignFunctionCall for RegisterProtocolCall {
-    fn get_name(&self) -> &str {
-        "registerProtocol"
-    }
-
-    fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![DataType::Int, DataType::Function, DataType::Generic(None)]
-    }
-
-    fn get_args(&self) -> Vec<Expression> {
-        unimplemented!()
-    }
-
-    fn return_type(&self) -> Option<DataType> {
-        None
-    }
-}
-
-pub struct RegisterAppCall {}
-
-impl RegisterAppCall {
-    pub fn new() -> RegisterAppCall {
-        RegisterAppCall {}
-    }
-}
-
-impl ForeignFunctionCall for RegisterAppCall {
-    fn get_name(&self) -> &str {
-        "registerApp"
-    }
-
-    fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![DataType::Foreign(ForeignType::AppDef)]
-    }
-
-    fn get_args(&self) -> Vec<Expression> {
-        vec![]
-    }
-
-    fn return_type(&self) -> Option<DataType> {
-        Some(DataType::Foreign(ForeignType::Queue))
-    }
-}
-
-// --------------- App ---------------
-pub struct AppCreateCall {
-    id: u32,
-    name: String,
-}
-
-impl AppCreateCall {
-    pub fn new(id: u32, name: String) -> AppCreateCall {
-        AppCreateCall { id, name }
-    }
-}
-
-impl ForeignFunctionCall for AppCreateCall {
-    fn get_name(&self) -> &str {
-        "create_application_definition"
-    }
-
-    fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![DataType::Int, DataType::String]
-    }
-
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::Constant(Constant::Int(self.id as i32)),
-             Expression::Constant(Constant::String(self.name.clone()))]
-    }
-
-    fn return_type(&self) -> Option<DataType> {
-        Some(DataType::Foreign(ForeignType::AppDef))
-    }
-}
-
-pub struct AppAddProducedCall {}
-
-impl ForeignFunctionCall for AppAddProducedCall {
-    fn get_name(&self) -> &str {
-        "app_def_add_produced_events"
-    }
-
-    fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![DataType::Foreign(ForeignType::AppDef), DataType::Int, DataType::Int]
-    }
-
-    fn get_args(&self) -> Vec<Expression> {
-        unimplemented!()
-    }
-
-    fn return_type(&self) -> Option<DataType> {
-        None
-    }
-}
-
-pub struct AppAddConsumedCall {}
-
-impl ForeignFunctionCall for AppAddConsumedCall {
-    fn get_name(&self) -> &str {
-        "app_def_add_consumed_events"
-    }
-
-    fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![DataType::Foreign(ForeignType::AppDef), DataType::Int, DataType::Int]
-    }
-
-    fn get_args(&self) -> Vec<Expression> {
-        unimplemented!()
-    }
-
-    fn return_type(&self) -> Option<DataType> {
-        None
-    }
-}
-
 // --------------- Protocol ---------------
 pub struct ProtoCreateCall {
     state: Rc<StructDecl>,
-    protocol: Rc<Protocol>,
+    protocol: Rc<ProtocolDef>,
 }
 
 impl ForeignFunctionCall for ProtoCreateCall {
@@ -320,12 +170,12 @@ impl ForeignFunctionCall for ProtoAddConsumedCall {
 
 // --------------- Handlers ---------------
 pub struct ProtoDefAddMsgHCall {
-    protocol: Rc<Protocol>,
+    protocol: Rc<ProtocolDef>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddMsgHCall {
-    pub fn new(protocol: Rc<Protocol>, handler: Rc<Function>) -> ProtoDefAddMsgHCall {
+    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddMsgHCall {
         ProtoDefAddMsgHCall { protocol, handler }
     }
 }
@@ -349,12 +199,12 @@ impl ForeignFunctionCall for ProtoDefAddMsgHCall {
 }
 
 pub struct ProtoDefAddTimerHCall {
-    protocol: Rc<Protocol>,
+    protocol: Rc<ProtocolDef>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddTimerHCall {
-    pub fn new(protocol: Rc<Protocol>, handler: Rc<Function>) -> ProtoDefAddTimerHCall {
+    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddTimerHCall {
         ProtoDefAddTimerHCall { protocol, handler }
     }
 }
@@ -378,12 +228,12 @@ impl ForeignFunctionCall for ProtoDefAddTimerHCall {
 }
 
 pub struct ProtoDefAddEventHCall {
-    protocol: Rc<Protocol>,
+    protocol: Rc<ProtocolDef>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddEventHCall {
-    pub fn new(protocol: Rc<Protocol>, handler: Rc<Function>) -> ProtoDefAddEventHCall {
+    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddEventHCall {
         ProtoDefAddEventHCall { protocol, handler }
     }
 }
@@ -407,12 +257,12 @@ impl ForeignFunctionCall for ProtoDefAddEventHCall {
 }
 
 pub struct ProtoDefAddRequestHCall {
-    protocol: Rc<Protocol>,
+    protocol: Rc<ProtocolDef>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddRequestHCall {
-    pub fn new(protocol: Rc<Protocol>, handler: Rc<Function>) -> ProtoDefAddRequestHCall {
+    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddRequestHCall {
         ProtoDefAddRequestHCall { protocol, handler }
     }
 }

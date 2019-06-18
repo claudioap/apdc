@@ -21,7 +21,8 @@ pub struct LocalAttribute {
 pub struct ForeignAttribute {
     name: String,
     dtype: RefCell<Option<DataType>>,
-    _lambda: fn(Vec<Expression>) -> Option<Constant>,
+    write_lambda: fn(Vec<Expression>) -> Option<Constant>,
+    read_lambda: fn(Vec<Expression>) -> Option<Constant>,
 }
 
 
@@ -104,6 +105,7 @@ impl fmt::Display for Attribute {
 pub struct StructDecl {
     name: String,
     attributes: Vec<Rc<Attribute>>,
+    exported: bool,
 }
 
 
@@ -112,6 +114,7 @@ impl StructDecl {
         StructDecl {
             name,
             attributes,
+            exported: false,
         }
     }
 
@@ -126,6 +129,14 @@ impl StructDecl {
             }
         }
         None
+    }
+
+    pub fn is_exported(&self) -> bool {
+        self.exported
+    }
+
+    pub fn set_exported(&mut self) {
+        self.exported = true;
     }
 
     pub fn transpile(&self) -> String {

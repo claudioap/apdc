@@ -21,7 +21,7 @@ pub enum Statement {
     StructDef(Rc<Variable>, Rc<StructDef>),
     FunctionDef(Rc<Function>),
     Call(FunctionCall),
-    ForeignCall(Box<ForeignFunctionCall>),
+    ForeignCall(Box<dyn ForeignFunctionCall>),
     Conditional(Conditional),
     Cycle(Cycle),
     Print(Vec<Expression>),

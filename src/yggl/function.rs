@@ -16,6 +16,7 @@ pub struct Function {
     environment: Environment,
     statements: Vec<Statement>,
     return_type: RefCell<Option<DataType>>,
+    exported: bool,
 }
 
 #[allow(dead_code)]
@@ -31,6 +32,7 @@ impl Function {
             environment,
             statements,
             return_type: RefCell::new(None),
+            exported: false,
         };
         function.determine_return()?;
         Ok(function)
@@ -44,7 +46,15 @@ impl Function {
         self.return_type.borrow().clone()
     }
 
-    pub fn determine_return(&self) -> Result<(), CompilationError> {
+    pub fn is_exported(&self) -> bool {
+        self.exported
+    }
+
+    pub fn set_exported(&mut self) {
+        self.exported = true;
+    }
+
+    fn determine_return(&self) -> Result<(), CompilationError> {
         let mut dtype = self.return_type.borrow().clone();
         for statement in &self.statements {
             if let Statement::Return(ref evaluable) = statement {
@@ -76,6 +86,32 @@ impl Function {
             }
         }
         self.determine_return()
+    }
+
+    pub fn transpile_signature(&self) -> String {
+        let rtype = match &self.return_type.borrow().clone() {
+            Some(dtype) => dtype.transpile(),
+            _ => "void".to_string()
+        };
+        let mut result = String::new();
+        result.reserve(1024 * 10); // Reserve 10 KB to prevent further allocations
+        result.push_str(format!("{} {}(", rtype, self.name).as_str());
+        for parameter in &self.parameters {
+            let identifier = parameter.get_identifier();
+            let dtype = parameter.data_type()
+                .expect(format!(
+                    "Parameter {} has unknown type ({})",
+                    identifier, self.name).as_str());
+            result.push_str(dtype.transpile().as_str());
+            result.push(' ');
+            result.push_str(identifier);
+            result.push(',');
+        }
+        if !self.parameters.is_empty() {
+            result.pop();// Remove last comma
+        }
+        result.push_str(");");
+        result
     }
 
     pub fn transpile(&self) -> String {

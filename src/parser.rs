@@ -10,12 +10,11 @@ use pest::prec_climber::*;
 use crate::yggl::data::{Constant, DataType};
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
-use crate::yggl::program::{Program, Include};
 use crate::yggl::environment::{Variable, Environment, Symbol};
 use crate::yggl::function::*;
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
-use crate::yggl::protocol::{Protocol, Interface, Handler, YggType};
+use crate::yggl::protocol::{ProtocolDef, Interface, Handler, YggType, Include, Protocol};
 use crate::yggl::timer::{TimerType, Timer, TimeUnit};
 use crate::yggl::networking::Address;
 use crate::yggl::foreign::Message;
@@ -71,15 +70,15 @@ pub fn lex(code: &str) -> Result<Pairs<Rule>, &str> {
     unreachable!();
 }
 
-impl Program {
-    pub fn from(pairs: Pairs<Rule>) -> Result<Program, CompilationError> {
-        let mut program = Program::new();
+impl Protocol {
+    pub fn from(pairs: Pairs<Rule>) -> Result<Protocol, CompilationError> {
+        let mut protocol = Protocol::new();
         for pair in pairs {
-            let env = program.get_env_mut();
+            let env = protocol.get_env_mut();
             match pair.as_rule() {
                 Rule::proto_def => {
-                    let protocol = Protocol::from(pair, env)?;
-                    program.set_protocol(protocol);
+                    let protocol_def = ProtocolDef::from(pair, env)?;
+                    protocol.set_definition(protocol_def);
                 }
                 Rule::function => {
                     let function = Function::from(pair, env)?;
@@ -99,8 +98,7 @@ impl Program {
                 _ => unimplemented!()
             }
         }
-        program.annotate();
-        Ok(program)
+        Ok(protocol)
     }
 }
 
@@ -165,7 +163,7 @@ impl Statement {
             Rule::notify => {
                 let mut inner = pair.into_inner();
                 let identifier = inner.next().unwrap().as_str();
-                let arguments = Function::read_arguments(inner.next().unwrap(), env)?;
+                let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
                 let struct_decl = match env.get(identifier) {
                     Some(Symbol::StructDecl(decl)) => decl,
                     Some(_) => return Err(CompilationError::new(
@@ -192,7 +190,7 @@ impl Statement {
                 };
                 let message = Message::new(var);
                 let address = Address::from(inner.next().unwrap())?;
-                let arguments = Function::read_arguments(inner.next().unwrap(), env)?;
+                let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
                 let statements = vec![
                     Statement::ForeignCall(Box::new(message.get_init_call(address))),
                     Statement::ForeignCall(Box::new(message.get_dispatch_call()))];
@@ -629,7 +627,7 @@ impl Function {
         let mut function_env = Environment::new();
         function_env.push_static(env.get_static_symbols());
         let mut inner = pair.into_inner();
-        let mut first_pair = inner.next().unwrap();
+        let first_pair = inner.next().unwrap();
         let body = if first_pair.as_rule() == Rule::parameters {
             parameters = Some(Function::read_parameters(first_pair, &mut function_env)?);
             inner.next().unwrap()
@@ -783,8 +781,8 @@ impl StructDef {
     }
 }
 
-impl Protocol {
-    pub fn from(pair: Pair<Rule>, env: &mut Environment) -> Result<Protocol, CompilationError> {
+impl ProtocolDef {
+    pub fn from(pair: Pair<Rule>, env: &mut Environment) -> Result<ProtocolDef, CompilationError> {
         let mut inner = pair.into_inner();
         let name = inner.next().unwrap().as_str().to_string();
         let mut proto_id: Option<u32> = None;
@@ -800,10 +798,11 @@ impl Protocol {
                     proto_id = Some(id);
                 }
                 Rule::proto_state => {
-                    let struct_decl =
+                    let mut struct_decl =
                         StructDecl::anonymous_from(
                             pair.into_inner().next().unwrap(),
                             format!("{}_proto_state", name))?;
+                    struct_decl.set_exported();
                     state_decl = Some(env.add_struct_decl(struct_decl));
                 }
                 Rule::proto_init => {
@@ -821,11 +820,12 @@ impl Protocol {
                     loop_func = Some(env.add_function(init));
                 }
                 Rule::proto_iface => {
-                    let mut new_interfaces = Protocol::read_interfaces(pair, env)?;
+                    let mut new_interfaces = ProtocolDef::read_interfaces(pair, env)?;
                     interfaces.append(&mut new_interfaces);
                 }
                 Rule::proto_handler => {
-                    let handler = Protocol::read_handler(&name, pair, env)?;
+                    let handler = Handler::from(&name, pair, env)?;
+                    handlers.push(handler);
                 }
                 _ => unreachable!()
             }
@@ -836,12 +836,16 @@ impl Protocol {
                 "Protocol declaration without a state or initialization.".to_string()));
         }
 
-        let protocol = Protocol::new(
+        let mut protocol = ProtocolDef::new(
             proto_id.unwrap(),
             name,
             state_decl.unwrap(),
-            init_func.unwrap(),
-            loop_func.unwrap());
+            init_func.unwrap());
+
+        if let Some(func) = loop_func {
+            protocol.add_main_loop(func);
+        }
+
 
         Ok(protocol)
     }
@@ -850,61 +854,9 @@ impl Protocol {
                            -> Result<Vec<Interface>, CompilationError> {
         let mut interfaces = vec![];
         for pair in pair.into_inner() {
-            match pair.as_rule() {
-                Rule::proto_iface_producer => {
-                    let mut inner = pair.into_inner();
-                    let ytype = Protocol::read_ygg_type(inner.next().unwrap());
-                    let identifier = inner.next().unwrap().as_str();
-                    match env.get(identifier) {
-                        Some(Symbol::Variable(var)) => {
-                            interfaces.push(Interface::Producer(ytype, var, 1, 1));
-                        }
-                        Some(_) => {
-                            return Err(CompilationError::new(
-                                0, 0, "".to_string(),
-                                "TODO Undefined".to_string()));
-                        }
-                        None => {
-                            let var = env.declare(identifier);
-                            interfaces.push(Interface::Producer(ytype, var, 1, 1));
-                        }
-                    }
-                }
-                Rule::proto_iface_consumer => {
-                    let mut inner = pair.into_inner();
-                    let ytype = Protocol::read_ygg_type(inner.next().unwrap());
-                    let identifier = inner.next().unwrap().as_str();
-                    match env.get(identifier) {
-                        Some(Symbol::Variable(var)) => {
-                            interfaces.push(Interface::Consumer(ytype, var, 1));
-                        }
-                        Some(_) => {
-                            return Err(CompilationError::new(
-                                0, 0, "".to_string(),
-                                "TODO Undefined".to_string()));
-                        }
-                        None => {
-                            let var = env.declare(identifier);
-                            interfaces.push(Interface::Consumer(ytype, var, 1));
-                        }
-                    }
-                }
-                _ => unreachable!()
-            }
+            interfaces.push(Interface::from(pair, env)?);
         }
         Ok(interfaces)
-    }
-
-    pub fn read_handler(proto_name: &str, pair: Pair<Rule>, env: &mut Environment)
-                        -> Result<Handler, CompilationError> {
-        let mut inner = pair.into_inner();
-        let ytype = Protocol::read_ygg_type(inner.next().unwrap());
-        let identifier = inner.next().unwrap().as_str().to_string();
-        let function = Function::anonymous_from(
-            inner.next().unwrap(), env,
-            format!("{}_{}_{}_handler", proto_name, ytype, identifier))?;
-        let function_rc = env.add_function(function);
-        Ok(Handler::new(identifier, ytype, function_rc))
     }
 
     pub fn read_ygg_type(pair: Pair<Rule>) -> YggType {
@@ -926,6 +878,66 @@ impl Protocol {
             }
             _ => unreachable!("{}", pair)
         }
+    }
+}
+
+
+impl Interface {
+    pub fn from(pair: Pair<Rule>, env: &mut Environment) -> Result<Interface, CompilationError> {
+        match pair.as_rule() {
+            Rule::proto_iface_producer => {
+                let mut inner = pair.into_inner();
+                let ytype = ProtocolDef::read_ygg_type(inner.next().unwrap());
+                let identifier = inner.next().unwrap().as_str();
+                match env.get(identifier) {
+                    Some(Symbol::Variable(var)) => {
+                        Ok(Interface::Producer(ytype, var, 1, 1))
+                    }
+                    Some(_) => {
+                        Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            "TODO Undefined".to_string()))
+                    }
+                    None => {
+                        let var = env.declare(identifier);
+                        Ok(Interface::Producer(ytype, var, 1, 1))
+                    }
+                }
+            }
+            Rule::proto_iface_consumer => {
+                let mut inner = pair.into_inner();
+                let ytype = ProtocolDef::read_ygg_type(inner.next().unwrap());
+                let identifier = inner.next().unwrap().as_str();
+                match env.get(identifier) {
+                    Some(Symbol::Variable(var)) => {
+                        Ok(Interface::Consumer(ytype, var, 1))
+                    }
+                    Some(_) => {
+                        Err(CompilationError::new(
+                            0, 0, "".to_string(),
+                            "TODO Undefined".to_string()))
+                    }
+                    None => {
+                        let var = env.declare(identifier);
+                        Ok(Interface::Consumer(ytype, var, 1))
+                    }
+                }
+            }
+            _ => unreachable!()
+        }
+    }
+}
+
+impl Handler {
+    pub fn from(proto_name: &str, pair: Pair<Rule>, env: &mut Environment) -> Result<Handler, CompilationError> {
+        let mut inner = pair.into_inner();
+        let ytype = ProtocolDef::read_ygg_type(inner.next().unwrap());
+        let identifier = inner.next().unwrap().as_str().to_string();
+        let function = Function::anonymous_from(
+            inner.next().unwrap(), env,
+            format!("{}_{}_{}_handler", proto_name, ytype, identifier))?;
+        let function_rc = env.add_function(function);
+        Ok(Handler::new(identifier, ytype, function_rc))
     }
 }
 

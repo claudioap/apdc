@@ -4,8 +4,11 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::yggl::data::{Constant, DataType};
 use crate::yggl::function::Function;
-use crate::yggl::program::Include;
+use crate::yggl::protocol::Include;
 use crate::yggl::structure::StructDecl;
+
+// Count of auxiliary variables
+static AUX_COUNT: i32 = 0;
 
 /// A program has a set of environments, which hold variable data.
 /// A scope is a slice of the current environment.
@@ -105,7 +108,7 @@ impl Environment {
     }
 
     /// Obtains every structure definition that is present in this environment
-    pub fn get_struct_defs(&self) -> Vec<Rc<StructDecl>> {
+    pub fn get_struct_decls(&self) -> Vec<Rc<StructDecl>> {
         let mut set = vec!();
         for symbol in self.scopes.front().unwrap().values() {
             if let Symbol::StructDecl(ref decl) = symbol {
@@ -159,7 +162,6 @@ impl Environment {
         static_scope.insert(name, Symbol::StructDecl(Rc::clone(&struct_def_rc)));
         struct_def_rc
     }
-
 
     /// Imports a vector of static symbols
     /// Meant to be used to import static symbols from the program environment
@@ -223,7 +225,6 @@ impl Environment {
             println!("----------------------------");
         }
     }
-
 
     /// Obtains the data type of the symbol that matches with that identifier
     /// Matching is done with the scopes being considered as a LIFO
