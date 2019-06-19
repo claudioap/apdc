@@ -8,7 +8,7 @@ use crate::yggl::protocol::Include;
 use crate::yggl::structure::StructDecl;
 
 // Count of auxiliary variables
-static AUX_COUNT: i32 = 0;
+static mut AUX_COUNT: i32 = 0;
 
 /// A program has a set of environments, which hold variable data.
 /// A scope is a slice of the current environment.
@@ -72,6 +72,14 @@ impl Environment {
             });
             scope.insert(identifier.to_string(), Symbol::Variable(Rc::clone(&var)));
             var
+        }
+    }
+
+    pub fn declare_aux(&mut self) -> Rc<Variable> {
+        unsafe {
+            let identifier = format!("aux_var_{}", AUX_COUNT);
+            AUX_COUNT += 1;
+            self.declare(identifier.as_str())
         }
     }
 

@@ -98,6 +98,7 @@ impl Protocol {
                 _ => unimplemented!()
             }
         }
+        protocol.compile()?;
         Ok(protocol)
     }
 }
@@ -180,7 +181,7 @@ impl Statement {
             Rule::send => {
                 let mut inner = pair.into_inner();
                 let identifier = inner.next().unwrap().as_str();
-                let var = match env.get(identifier) {
+                let _var = match env.get(identifier) {
                     Some(Symbol::Variable(var)) => var,
                     Some(_) => return Err(CompilationError::new(
                         0, 0, "".to_string(),
@@ -188,11 +189,14 @@ impl Statement {
                     None =>
                         env.declare(identifier)
                 };
-                let message = Message::new(var);
+                let aux_var = env.declare_aux();
+                let message = Message::new(Rc::clone(&aux_var));
                 let address = Address::from(inner.next().unwrap())?;
                 let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
                 let statements = vec![
-                    Statement::ForeignCall(Box::new(message.get_init_call(address))),
+                    Statement::Assignment(
+                        aux_var,
+                        Expression::Foreign(Box::new(message.get_init_call(address)))),
                     Statement::ForeignCall(Box::new(message.get_dispatch_call()))];
                 Ok(Statement::Composite(statements))
             }

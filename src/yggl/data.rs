@@ -32,6 +32,7 @@ impl DataType {
                 panic!("Not meant to be transpiled."),
             DataType::Struct(ref decl) => format!("struct {}", decl.get_name()),
             DataType::Reference(ref dtype) => format!("{} *", dtype.transpile()),
+            DataType::Foreign(ref foreign) => format!("{}", foreign),
             _ => unimplemented!()
         }
     }

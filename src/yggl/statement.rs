@@ -7,7 +7,6 @@ use crate::yggl::function::{FunctionCall, Function};
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 use crate::yggl::timer::Timer;
-use crate::yggl::networking::Address;
 use crate::yggl::foreign::ForeignFunctionCall;
 
 /// Statements are standalone instructions.
@@ -28,7 +27,6 @@ pub enum Statement {
     Return(Expression),
     AttributeAssignment(Rc<Variable>, Rc<Attribute>, Expression),
     Setup(Rc<Variable>, Timer),
-    Send(Rc<Variable>, Address, Vec<Expression>),
     Notify(String, Rc<StructDef>),
     Composite(Vec<Statement>),
 }
@@ -52,19 +50,22 @@ impl Statement {
     pub fn transpile(&self, env: &Environment) -> String {
         match self {
             Statement::Declaration(var) => {
-                match var.data_type().unwrap() {
-                    DataType::Struct(_) => {
-                        format!("{}* {};", var.data_type().unwrap().transpile(), var.get_identifier())
+                match var.data_type() {
+                    Some(DataType::Struct(decl)) => {
+                        format!("{}* {};", DataType::Struct(decl).transpile(), var.get_identifier())
                     }
-                    _ => {
-                        format!("{} {};", var.data_type().unwrap().transpile(), var.get_identifier())
+                    Some(dtype) => {
+                        format!("{} {};", dtype.transpile(), var.get_identifier())
+                    },
+                    None => {
+                        panic!("Variable {} has an unknown type", var)
                     }
                 }
             }
             Statement::Assignment(identifier, exp) => {
                 format!("{} = {};", identifier.get_identifier(), exp.transpile())
             }
-            Statement::Print(expressions) => {
+            Statement::Print(expressions) => { // TODO to foreign
                 let mut format_string = String::new();
                 format_string.reserve(expressions.len() * 4);
                 let mut expressions_string = String::new();
@@ -95,7 +96,6 @@ impl Statement {
                         panic!("Print of non-valued expression: {}", expression);
                     }
                 }
-
                 format!("printf(\"{}\"{});", format_string, expressions_string)
             }
             Statement::Conditional(conditional) => conditional.transpile(env),
@@ -115,14 +115,11 @@ impl Statement {
             Statement::Setup(_, _) => {
                 "TODO SETUP".to_string()
             }
-            Statement::Send(_, _, _) => {
-                "TODO SEND".to_string()
-            }
             Statement::Notify(_, _) => {
                 "TODO NOTIFY".to_string()
             }
             Statement::ForeignCall(call) => {
-                call.transpile()
+                format!("{};", call.transpile())
             }
             _ => { unimplemented!() }
         }

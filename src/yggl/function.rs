@@ -162,7 +162,6 @@ impl Function {
 }
 
 #[allow(dead_code)]
-#[derive(Clone)]
 pub struct FunctionCall {
     function: Rc<Function>,
     arguments: Vec<Expression>,

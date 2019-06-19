@@ -4,9 +4,9 @@ use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::data::{Constant, DataType};
 use crate::yggl::structure::Attribute;
 use crate::yggl::function::FunctionCall;
+use crate::yggl::foreign::ForeignFunctionCall;
 
 /// Expressions represent portions of code that evaluate to values
-#[derive(Clone)]
 #[allow(dead_code)]
 pub enum Expression {
     Variable(Rc<Variable>),
@@ -15,6 +15,7 @@ pub enum Expression {
     BinaryOperation(Box<Expression>, BinaryOperation, Box<Expression>),
     AttributeAccess(Rc<Variable>, Rc<Attribute>),
     Call(FunctionCall),
+    Foreign(Box<dyn ForeignFunctionCall>),// TODO merge with previous
 }
 
 impl Expression {
@@ -31,7 +32,8 @@ impl Expression {
             Expression::UnaryOperation(exp, op) =>
                 match op {
                     UnaryOperation::Inc => exp.eval(environment) + Constant::Int(1),
-                    UnaryOperation::Dec => exp.eval(environment) - Constant::Int(1)
+                    UnaryOperation::Dec => exp.eval(environment) - Constant::Int(1),
+                    UnaryOperation::Ref | UnaryOperation::Deref => unimplemented!()
                 },
             Expression::BinaryOperation(lexp, op, rexp) => {
                 match op {
@@ -46,7 +48,7 @@ impl Expression {
                         Constant::Bool(self.bin_eval(environment)),
                 }
             }
-            Expression::AttributeAccess(_, _) | Expression::Call(_) => {
+            Expression::AttributeAccess(_, _) | Expression::Call(_) | Expression::Foreign(_) => {
                 unimplemented!();
             }
         }
@@ -59,7 +61,8 @@ impl Expression {
             Expression::UnaryOperation(exp, op) => {
                 match op {
                     UnaryOperation::Inc => (exp.eval(environment) + Constant::Int(1)).truth_value(),
-                    UnaryOperation::Dec => (exp.eval(environment) - Constant::Int(1)).truth_value()
+                    UnaryOperation::Dec => (exp.eval(environment) - Constant::Int(1)).truth_value(),
+                    UnaryOperation::Ref | UnaryOperation::Deref => unimplemented!()
                 }
             }
             Expression::BinaryOperation(lexp, op, rexp) => {
@@ -92,7 +95,7 @@ impl Expression {
                         lexp.eval(environment).truth_value() || rexp.eval(environment).truth_value(),
                 }
             }
-            Expression::AttributeAccess(_, _) | &Expression::Call(_) => { unimplemented!() }
+            _ => unimplemented!()
         }
     }
 
@@ -100,10 +103,29 @@ impl Expression {
         match self {
             Expression::Constant(c) => Some(c.data_type()),
             Expression::Variable(v) => v.data_type(),
-            Expression::UnaryOperation(exp, _) => exp.data_type(),
+            Expression::UnaryOperation(exp, op) => {
+                match op {
+                    UnaryOperation::Inc | UnaryOperation::Dec => exp.data_type(),
+                    UnaryOperation::Ref => {
+                        if let Some(dtype) = exp.data_type() {
+                            Some(DataType::Reference(Box::new(dtype)))
+                        } else {
+                            None
+                        }
+                    }
+                    UnaryOperation::Deref => {
+                        if let Some(DataType::Reference(dtype)) = exp.data_type() {
+                            Some(*dtype)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            }
             Expression::BinaryOperation(exp, _, _) => exp.data_type(),
             Expression::AttributeAccess(_, attr) => attr.data_type(),
-            Expression::Call(call) => call.data_type()
+            Expression::Call(call) => call.data_type(),
+            Expression::Foreign(call) => call.return_type(),
         }
     }
 
@@ -111,18 +133,15 @@ impl Expression {
         match self {
             Expression::Constant(c) => format!("{}", c),
             Expression::Variable(v) => format!("{}", v.get_identifier()),
-            Expression::UnaryOperation( exp, op) => {
+            Expression::UnaryOperation(exp, op) => {
                 format!("({}{})", op, exp.transpile())
             }
             Expression::BinaryOperation(lhs, op, rhs) => {
                 format!("({} {} {})", lhs.transpile(), op, rhs.transpile())
             }
-            Expression::AttributeAccess(var, attr) => {
-                attr.access_transpile(&var)
-            }
-            Expression::Call(call) => {
-                call.transpile()
-            }
+            Expression::AttributeAccess(var, attr) => attr.access_transpile(&var),
+            Expression::Call(call) => call.transpile(),
+            Expression::Foreign(call) => call.transpile(),
         }
     }
 }
@@ -135,12 +154,14 @@ impl fmt::Display for Expression {
             Expression::Constant(v) =>
                 write!(f, "{}", v),
             Expression::UnaryOperation(a, op) =>
-                write!(f, "{}{}", a, op),
+                write!(f, "{}{}", op, a),
             Expression::BinaryOperation(l, op, r) =>
                 write!(f, "({}{}{})", l, op, r),
             Expression::AttributeAccess(var, attr) =>
                 write!(f, "{}", attr.access_transpile(&var)),
             Expression::Call(call) =>
+                write!(f, "{}", call.transpile()),
+            Expression::Foreign(call) =>
                 write!(f, "{}", call.transpile()),
         }
     }
@@ -236,13 +257,15 @@ impl ops::Div<Expression> for Expression {
 
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
-pub enum UnaryOperation { Inc, Dec }
+pub enum UnaryOperation { Inc, Dec, Ref, Deref }
 
 impl fmt::Display for UnaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", match self {
             UnaryOperation::Inc => "++",
             UnaryOperation::Dec => "--",
+            UnaryOperation::Ref => "&",
+            UnaryOperation::Deref => "*",
         })
     }
 }

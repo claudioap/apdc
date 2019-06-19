@@ -1,8 +1,9 @@
 use std::rc::Rc;
-use crate::yggl::data::DataType;
+use std::fmt;
+use crate::yggl::data::{DataType, Constant};
 use crate::yggl::structure::StructDecl;
 use crate::yggl::protocol::ProtocolDef;
-use crate::yggl::expression::Expression;
+use crate::yggl::expression::{Expression, UnaryOperation};
 use crate::yggl::function::Function;
 use crate::yggl::environment::Variable;
 use crate::yggl::networking::Address;
@@ -21,6 +22,21 @@ pub enum ForeignType {
     Request,
     Response,
     Notification,
+}
+
+impl fmt::Display for ForeignType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ForeignType::ProtoDef => write!(f, "proto_def"),
+            ForeignType::UUID => write!(f, "uuid_T"),
+            ForeignType::List => write!(f, "List"),
+            ForeignType::Timer => write!(f, "YggTimer"),
+            ForeignType::Message => write!(f, "YggMessage"),
+            ForeignType::Request => write!(f, "YggRequest"),
+            ForeignType::Response => write!(f, "YggResponse"),
+            _ => unimplemented!()
+        }
+    }
 }
 
 pub trait ForeignObject {
@@ -57,7 +73,25 @@ impl Message {
 
 impl ForeignObject for Message {
     fn datatype(&self) -> DataType {
-        DataType::Reference(Box::new(DataType::Foreign(ForeignType::Message)))
+        DataType::Foreign(ForeignType::Message)
+    }
+}
+
+pub struct Timer {
+    variable: Rc<Variable>,
+}
+
+impl Timer {
+    pub fn new(variable: Rc<Variable>) -> Timer {
+        let timer = Timer { variable: Rc::clone(&variable) };
+        variable.set_type(timer.datatype());
+        timer
+    }
+}
+
+impl ForeignObject for Timer {
+    fn datatype(&self) -> DataType {
+        DataType::Foreign(ForeignType::Timer)
     }
 }
 
@@ -76,7 +110,7 @@ pub trait ForeignFunctionCall {
         if !args.is_empty() {
             output.pop();
         }
-        output.push_str(");");
+        output.push(')');
         output
     }
 }
@@ -84,7 +118,12 @@ pub trait ForeignFunctionCall {
 // --------------- Protocol ---------------
 pub struct ProtoCreateCall {
     state: Rc<StructDecl>,
-    protocol: Rc<ProtocolDef>,
+}
+
+impl ProtoCreateCall {
+    pub fn new(state: Rc<StructDecl>) -> ProtoCreateCall {
+        ProtoCreateCall { state }
+    }
 }
 
 impl ForeignFunctionCall for ProtoCreateCall {
@@ -93,20 +132,30 @@ impl ForeignFunctionCall for ProtoCreateCall {
     }
 
     fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![DataType::Int, DataType::String, DataType::Struct(Rc::clone(&self.state))]
+        vec![DataType::Int, DataType::String]//, DataType::Struct(Rc::clone(&self.state))]
     }
 
     fn get_args(&self) -> Vec<Expression> {
-        unimplemented!()
+        vec![Expression::Constant(Constant::Int(1)),
+             Expression::Constant(Constant::String("Dummy".to_string()))] //, self.state]
     }
 
     fn return_type(&self) -> Option<DataType> {
-        Some(DataType::Foreign(ForeignType::ProtoDef))
+        Some(DataType::Reference(Box::new(DataType::Foreign(ForeignType::ProtoDef))))
     }
 }
 
 
-pub struct ProtoAddMLoopCall {}
+pub struct ProtoAddMLoopCall {
+    var: Rc<Variable>,
+    main_loop: Rc<Function>,
+}
+
+impl ProtoAddMLoopCall {
+    pub fn new(var: Rc<Variable>, main_loop: Rc<Function>) -> ProtoAddMLoopCall {
+        ProtoAddMLoopCall { var, main_loop }
+    }
+}
 
 impl ForeignFunctionCall for ProtoAddMLoopCall {
     fn get_name(&self) -> &str {
@@ -114,11 +163,14 @@ impl ForeignFunctionCall for ProtoAddMLoopCall {
     }
 
     fn get_parameter_types(&self) -> Vec<DataType> {
-        unimplemented!()
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::ProtoDef))),
+             DataType::Foreign(ForeignType::ProtoDef)]
     }
 
     fn get_args(&self) -> Vec<Expression> {
-        unimplemented!()
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.var))),
+            UnaryOperation::Ref)]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -310,7 +362,9 @@ impl ForeignFunctionCall for MessageInitCall {
     }
 
     fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::Variable(Rc::clone(&self.variable))]
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -338,7 +392,9 @@ impl ForeignFunctionCall for MessageDispatchCall {
     }
 
     fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::Variable(Rc::clone(&self.variable))]
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
     }
 
     fn return_type(&self) -> Option<DataType> {
