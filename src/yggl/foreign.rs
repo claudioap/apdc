@@ -7,6 +7,7 @@ use crate::yggl::expression::{Expression, UnaryOperation};
 use crate::yggl::function::Function;
 use crate::yggl::environment::Variable;
 use crate::yggl::networking::Address;
+use crate::yggl::timer::TimerType;
 
 // ############### Foreign types ###############
 #[derive(Clone, PartialEq, Hash, Debug)]
@@ -21,7 +22,7 @@ pub enum ForeignType {
     Message,
     Request,
     Response,
-    Notification,
+    Event,
 }
 
 impl fmt::Display for ForeignType {
@@ -34,7 +35,7 @@ impl fmt::Display for ForeignType {
             ForeignType::Message => write!(f, "YggMessage"),
             ForeignType::Request => write!(f, "YggRequest"),
             ForeignType::Response => write!(f, "YggResponse"),
-            _ => unimplemented!()
+            ForeignType::Event => write!(f, "YggEvent")
         }
     }
 }
@@ -79,19 +80,72 @@ impl ForeignObject for Message {
 
 pub struct Timer {
     variable: Rc<Variable>,
+    ttype: TimerType,
+    wait: u64,
+    period: u64,
 }
 
 impl Timer {
-    pub fn new(variable: Rc<Variable>) -> Timer {
-        let timer = Timer { variable: Rc::clone(&variable) };
+    pub fn new(variable: Rc<Variable>, ttype: TimerType, wait: u64, period: u64) -> Timer {
+        let timer = Timer { variable: Rc::clone(&variable), ttype, wait, period };
         variable.set_type(timer.datatype());
         timer
+    }
+
+    pub fn get_init_call(&self) -> TimerInitCall {
+        TimerInitCall::new(Rc::clone(&self.variable))
+    }
+
+    pub fn get_set_call(&self) -> TimerSetCall {
+        TimerSetCall::new(Rc::clone(&self.variable))
+    }
+
+    pub fn get_set_type_call(&self) -> TimerSetTypeCall {
+        TimerSetTypeCall::new(Rc::clone(&self.variable))
+    }
+
+    pub fn get_setup_call(&self) -> TimerSetupCall {
+        TimerSetupCall::new(Rc::clone(&self.variable))
     }
 }
 
 impl ForeignObject for Timer {
     fn datatype(&self) -> DataType {
         DataType::Foreign(ForeignType::Timer)
+    }
+}
+
+pub struct Event {
+    variable: Rc<Variable>,
+}
+
+impl Event {
+    pub fn new(variable: Rc<Variable>) -> Event {
+        let event = Event { variable: Rc::clone(&variable) };
+        variable.set_type(event.datatype());
+        event
+    }
+
+    pub fn get_init_call(&self) -> EventInitCall {
+        EventInitCall::new(Rc::clone(&self.variable))
+    }
+
+    pub fn get_add_payload_call(&self) -> EventAddPayloadCall {
+        EventAddPayloadCall::new(Rc::clone(&self.variable))
+    }
+
+    pub fn get_deliver_call(&self) -> EventDeliverCall {
+        EventDeliverCall::new(Rc::clone(&self.variable))
+    }
+
+    pub fn get_free_payload_call(&self) -> EventFreePayloadCall {
+        EventFreePayloadCall::new(Rc::clone(&self.variable))
+    }
+}
+
+impl ForeignObject for Event {
+    fn datatype(&self) -> DataType {
+        DataType::Foreign(ForeignType::Event)
     }
 }
 
@@ -145,7 +199,6 @@ impl ForeignFunctionCall for ProtoCreateCall {
     }
 }
 
-
 pub struct ProtoAddMLoopCall {
     var: Rc<Variable>,
     main_loop: Rc<Function>,
@@ -178,7 +231,6 @@ impl ForeignFunctionCall for ProtoAddMLoopCall {
     }
 }
 
-
 pub struct ProtoAddProducedCall {}
 
 impl ForeignFunctionCall for ProtoAddProducedCall {
@@ -198,7 +250,6 @@ impl ForeignFunctionCall for ProtoAddProducedCall {
         None
     }
 }
-
 
 pub struct ProtoAddConsumedCall {}
 
@@ -399,5 +450,245 @@ impl ForeignFunctionCall for MessageDispatchCall {
 
     fn return_type(&self) -> Option<DataType> {
         Some(DataType::Int)
+    }
+}
+
+pub struct TimerInitCall {
+    variable: Rc<Variable>,
+}
+
+impl TimerInitCall {
+    pub fn new(variable: Rc<Variable>) -> TimerInitCall {
+        TimerInitCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for TimerInitCall {
+    fn get_name(&self) -> &str {
+        "YggTimer_init"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+pub struct TimerSetCall {
+    variable: Rc<Variable>,
+}
+
+impl TimerSetCall {
+    pub fn new(variable: Rc<Variable>) -> TimerSetCall {
+        TimerSetCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for TimerSetCall {
+    fn get_name(&self) -> &str {
+        "YggTimer_set"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+pub struct TimerSetTypeCall {
+    variable: Rc<Variable>,
+}
+
+impl TimerSetTypeCall {
+    pub fn new(variable: Rc<Variable>) -> TimerSetTypeCall {
+        TimerSetTypeCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for TimerSetTypeCall {
+    fn get_name(&self) -> &str {
+        "YggTimer_setType"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+pub struct TimerSetupCall {
+    variable: Rc<Variable>,
+}
+
+impl TimerSetupCall {
+    pub fn new(variable: Rc<Variable>) -> TimerSetupCall {
+        TimerSetupCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for TimerSetupCall {
+    fn get_name(&self) -> &str {
+        "setupTimer"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+pub struct EventInitCall {
+    variable: Rc<Variable>,
+}
+
+impl EventInitCall {
+    pub fn new(variable: Rc<Variable>) -> EventInitCall {
+        EventInitCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for EventInitCall {
+    fn get_name(&self) -> &str {
+        "YggEvent_init"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+pub struct EventAddPayloadCall {
+    variable: Rc<Variable>,
+}
+
+impl EventAddPayloadCall {
+    pub fn new(variable: Rc<Variable>) -> EventAddPayloadCall {
+        EventAddPayloadCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for EventAddPayloadCall {
+    fn get_name(&self) -> &str {
+        "YggEvent_addPayload"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+pub struct EventDeliverCall {
+    variable: Rc<Variable>,
+}
+
+impl EventDeliverCall {
+    pub fn new(variable: Rc<Variable>) -> EventDeliverCall {
+        EventDeliverCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for EventDeliverCall {
+    fn get_name(&self) -> &str {
+        "deliverEvent"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+pub struct EventFreePayloadCall {
+    variable: Rc<Variable>,
+}
+
+impl EventFreePayloadCall {
+    pub fn new(variable: Rc<Variable>) -> EventFreePayloadCall {
+        EventFreePayloadCall { variable }
+    }
+}
+
+impl ForeignFunctionCall for EventFreePayloadCall {
+    fn get_name(&self) -> &str {
+        "YggEvent_freePayload"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
+    }
+
+    fn get_args(&self) -> Vec<Expression> {
+        vec![Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
     }
 }

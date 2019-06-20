@@ -15,9 +15,9 @@ use crate::yggl::function::*;
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
 use crate::yggl::protocol::{ProtocolDef, Interface, Handler, YggType, Include, Protocol};
-use crate::yggl::timer::{TimerType, Timer, TimeUnit};
+use crate::yggl::timer::{TimerType, TimeUnit};
 use crate::yggl::networking::Address;
-use crate::yggl::foreign::Message;
+use crate::yggl::foreign::{Message, Timer, Event};
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -154,29 +154,62 @@ impl Statement {
                     }
                     _ => unimplemented!()
                 };
-                let identifier = inner.next().unwrap().as_str().to_string();
-                let wait = TimeUnit::read_value(inner.next().unwrap());
-                let period = TimeUnit::read_value(inner.next().unwrap());
-                let timer = Timer::new(ttype, wait, period);
-                let var = env.declare(format!("{}_timer", identifier).as_str());
-                Ok(Statement::Setup(var, timer))
-            }
-            Rule::notify => {
-                let mut inner = pair.into_inner();
                 let identifier = inner.next().unwrap().as_str();
-                let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
-                let struct_decl = match env.get(identifier) {
-                    Some(Symbol::StructDecl(decl)) => decl,
+                let _var = match env.get(identifier) {
+                    Some(Symbol::Variable(var)) => var,
                     Some(_) => return Err(CompilationError::new(
                         0, 0, "".to_string(),
                         format!("{} type mismatch", identifier))),
                     None =>
-                        return Err(CompilationError::new(
-                            0, 0, "".to_string(),
-                            format!("{} not found", identifier)))
+                        env.declare(identifier)
                 };
-                let notif_definition = StructDef::new(struct_decl, HashMap::new());
-                Ok(Statement::Notify(identifier.to_string(), Rc::new(notif_definition)))
+
+                let aux_var = env.declare_aux();
+                aux_var.set_declared();
+                let wait = TimeUnit::read_value(inner.next().unwrap());
+                let period = TimeUnit::read_value(inner.next().unwrap());
+                let timer = Timer::new(Rc::clone(&aux_var), ttype, wait, period);
+                let statements = vec![
+                    Statement::Declaration(Rc::clone(&aux_var)),
+                    Statement::ForeignCall(Box::new(timer.get_init_call())),
+                    Statement::ForeignCall(Box::new(timer.get_set_call())),
+                    Statement::ForeignCall(Box::new(timer.get_set_type_call())),
+                    Statement::ForeignCall(Box::new(timer.get_setup_call()))];
+                Ok(Statement::Composite(statements))
+            }
+            Rule::notify => {
+                let mut inner = pair.into_inner();
+                let identifier = inner.next().unwrap().as_str();
+                let _var = match env.get(identifier) {
+                    Some(Symbol::Variable(var)) => var,
+                    Some(_) => return Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("{} type mismatch", identifier))),
+                    None =>
+                        env.declare(identifier)
+                };
+
+                let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
+//                let struct_decl = match env.get(identifier) {
+//                    Some(Symbol::StructDecl(decl)) => decl,
+//                    Some(_) => return Err(CompilationError::new(
+//                        0, 0, "".to_string(),
+//                        format!("{} type mismatch", identifier))),
+//                    None =>
+//                        return Err(CompilationError::new(
+//                            0, 0, "".to_string(),
+//                            format!("{} not found", identifier)))
+//                };
+//                let notif_definition = StructDef::new(struct_decl, HashMap::new());
+                let aux_var = env.declare_aux();
+                aux_var.set_declared();
+                let event = Event::new(Rc::clone(&aux_var));
+                let statements = vec![
+                    Statement::Declaration(Rc::clone(&aux_var)),
+                    Statement::ForeignCall(Box::new(event.get_init_call())),
+                    Statement::ForeignCall(Box::new(event.get_deliver_call())),
+                    Statement::ForeignCall(Box::new(event.get_free_payload_call()))];
+                Ok(Statement::Composite(statements))
             }
             Rule::send => {
                 let mut inner = pair.into_inner();
@@ -194,9 +227,8 @@ impl Statement {
                 let address = Address::from(inner.next().unwrap())?;
                 let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
                 let statements = vec![
-                    Statement::Assignment(
-                        aux_var,
-                        Expression::Foreign(Box::new(message.get_init_call(address)))),
+                    Statement::Declaration(Rc::clone(&aux_var)),
+                    Statement::ForeignCall(Box::new(message.get_init_call(address))),
                     Statement::ForeignCall(Box::new(message.get_dispatch_call()))];
                 Ok(Statement::Composite(statements))
             }

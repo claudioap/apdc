@@ -36,15 +36,3 @@ impl FromStr for TimeUnit {
         }
     }
 }
-
-pub struct Timer {
-    ttype: TimerType,
-    wait: u64,
-    period: u64,
-}
-
-impl Timer {
-    pub fn new(ttype: TimerType, wait: u64, period: u64) -> Timer{
-        Timer{ttype, wait, period}
-    }
-}

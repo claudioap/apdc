@@ -6,18 +6,17 @@ pub fn expand_statements(statements: &mut Vec<Statement>) {
     let mut composite_indexes = vec![];
     for statement in &*statements {
         if let Statement::Composite(_) = statement {
-            composite_indexes.push(offset)
+            composite_indexes.push(offset);
         }
         offset += 1;
     }
     offset = 0; // Reset offset
 
     for index in composite_indexes {
-        let statement = statements.remove(index - offset);
-        if let Statement::Composite(mut vec) = statement {
-            vec.reverse();
+        let statement = statements.remove(index + offset);
+        if let Statement::Composite(vec) = statement {
             for statement in vec {
-                statements.insert(index, statement);
+                statements.insert(index + offset, statement);
                 offset += 1; // Increment to compensate the inserted instruction
             }
             offset -= 1; // Decrement to compensate the removed instruction

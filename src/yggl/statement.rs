@@ -6,7 +6,6 @@ use crate::yggl::expression::Expression;
 use crate::yggl::function::{FunctionCall, Function};
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute};
-use crate::yggl::timer::Timer;
 use crate::yggl::foreign::ForeignFunctionCall;
 
 /// Statements are standalone instructions.
@@ -26,8 +25,6 @@ pub enum Statement {
     Print(Vec<Expression>),
     Return(Expression),
     AttributeAssignment(Rc<Variable>, Rc<Attribute>, Expression),
-    Setup(Rc<Variable>, Timer),
-    Notify(String, Rc<StructDef>),
     Composite(Vec<Statement>),
 }
 
@@ -111,12 +108,6 @@ impl Statement {
             }
             Statement::StructDecl(_) | Statement::FunctionDef(_) => {
                 "".to_string()
-            }
-            Statement::Setup(_, _) => {
-                "TODO SETUP".to_string()
-            }
-            Statement::Notify(_, _) => {
-                "TODO NOTIFY".to_string()
             }
             Statement::ForeignCall(call) => {
                 format!("{};", call.transpile())
