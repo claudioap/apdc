@@ -17,20 +17,34 @@ pub enum ForeignType {
     // uuid_t
     UUID,
     // list
-    List,
+    List(Box<DataType>),
     Timer,
     Message,
     Request,
     Response,
     Event,
 }
+impl ForeignType {
+    pub fn name(&self) -> &str{
+        match self {
+            ForeignType::ProtoDef => "proto_def",
+            ForeignType::UUID => "uuid_t",
+            ForeignType::List(_) => "list",
+            ForeignType::Timer => "YggTimer",
+            ForeignType::Message => "YggMessage",
+            ForeignType::Request => "YggRequest",
+            ForeignType::Response => "YggResponse",
+            ForeignType::Event => "YggEvent"
+        }
+    }
+}
 
 impl fmt::Display for ForeignType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ForeignType::ProtoDef => write!(f, "proto_def"),
-            ForeignType::UUID => write!(f, "uuid_T"),
-            ForeignType::List => write!(f, "List"),
+            ForeignType::UUID => write!(f, "uuid_t"),
+            ForeignType::List(_) => write!(f, "list"),
             ForeignType::Timer => write!(f, "YggTimer"),
             ForeignType::Message => write!(f, "YggMessage"),
             ForeignType::Request => write!(f, "YggRequest"),
@@ -149,11 +163,45 @@ impl ForeignObject for Event {
     }
 }
 
+pub struct List {
+    variable: Rc<Variable>,
+}
+
+impl List {
+    pub fn new(variable: Rc<Variable>) -> List {
+        let list = List { variable: Rc::clone(&variable) };
+        variable.set_type(list.datatype());
+        list
+    }
+
+    pub fn get_init_call(&self) -> ListInitCall {
+        ListInitCall {}
+    }
+//
+//    pub fn get_add_payload_call(&self) -> EventAddPayloadCall {
+//        EventAddPayloadCall::new(Rc::clone(&self.variable))
+//    }
+//
+//    pub fn get_deliver_call(&self) -> EventDeliverCall {
+//        EventDeliverCall::new(Rc::clone(&self.variable))
+//    }
+//
+//    pub fn get_free_payload_call(&self) -> EventFreePayloadCall {
+//        EventFreePayloadCall::new(Rc::clone(&self.variable))
+//    }
+}
+
+impl ForeignObject for List {
+    fn datatype(&self) -> DataType {
+        DataType::Foreign(ForeignType::List(Box::new(self.variable.data_type().unwrap())))
+    }
+}
+
 // ############### Foreign functions ###############
 pub trait ForeignFunctionCall {
     fn get_name(&self) -> &str;
     fn get_parameter_types(&self) -> Vec<DataType>;
-    fn get_args(&self) -> Vec<Expression>;
+    fn get_args(&self) -> Vec<Rc<Expression>>;
     fn return_type(&self) -> Option<DataType>;
     fn transpile(&self) -> String {
         let mut output = format!("{}(", self.get_name());
@@ -189,9 +237,9 @@ impl ForeignFunctionCall for ProtoCreateCall {
         vec![DataType::Int, DataType::String]//, DataType::Struct(Rc::clone(&self.state))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::Constant(Constant::Int(1)),
-             Expression::Constant(Constant::String("Dummy".to_string()))] //, self.state]
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::Constant(Constant::Int(1))),
+             Rc::new(Expression::Constant(Constant::String("Dummy".to_string())))] //, self.state]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -220,10 +268,10 @@ impl ForeignFunctionCall for ProtoAddMLoopCall {
              DataType::Foreign(ForeignType::ProtoDef)]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.var))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -242,7 +290,7 @@ impl ForeignFunctionCall for ProtoAddProducedCall {
         unimplemented!()
     }
 
-    fn get_args(&self) -> Vec<Expression> {
+    fn get_args(&self) -> Vec<Rc<Expression>> {
         unimplemented!()
     }
 
@@ -262,7 +310,7 @@ impl ForeignFunctionCall for ProtoAddConsumedCall {
         unimplemented!()
     }
 
-    fn get_args(&self) -> Vec<Expression> {
+    fn get_args(&self) -> Vec<Rc<Expression>> {
         unimplemented!()
     }
 
@@ -292,7 +340,7 @@ impl ForeignFunctionCall for ProtoDefAddMsgHCall {
         vec![DataType::Function]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
+    fn get_args(&self) -> Vec<Rc<Expression>> {
         unimplemented!()
     }
 
@@ -321,7 +369,7 @@ impl ForeignFunctionCall for ProtoDefAddTimerHCall {
         unimplemented!()
     }
 
-    fn get_args(&self) -> Vec<Expression> {
+    fn get_args(&self) -> Vec<Rc<Expression>> {
         unimplemented!()
     }
 
@@ -350,7 +398,7 @@ impl ForeignFunctionCall for ProtoDefAddEventHCall {
         unimplemented!()
     }
 
-    fn get_args(&self) -> Vec<Expression> {
+    fn get_args(&self) -> Vec<Rc<Expression>> {
         unimplemented!()
     }
 
@@ -379,7 +427,7 @@ impl ForeignFunctionCall for ProtoDefAddRequestHCall {
         unimplemented!()
     }
 
-    fn get_args(&self) -> Vec<Expression> {
+    fn get_args(&self) -> Vec<Rc<Expression>> {
         unimplemented!()
     }
 
@@ -412,10 +460,10 @@ impl ForeignFunctionCall for MessageInitCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Message)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -442,10 +490,10 @@ impl ForeignFunctionCall for MessageDispatchCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Message)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -472,10 +520,10 @@ impl ForeignFunctionCall for TimerInitCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -502,10 +550,10 @@ impl ForeignFunctionCall for TimerSetCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -532,10 +580,10 @@ impl ForeignFunctionCall for TimerSetTypeCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -562,10 +610,10 @@ impl ForeignFunctionCall for TimerSetupCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Timer)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -592,10 +640,10 @@ impl ForeignFunctionCall for EventInitCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -622,10 +670,10 @@ impl ForeignFunctionCall for EventAddPayloadCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -652,10 +700,10 @@ impl ForeignFunctionCall for EventDeliverCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -682,10 +730,68 @@ impl ForeignFunctionCall for EventFreePayloadCall {
         vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::Event)))]
     }
 
-    fn get_args(&self) -> Vec<Expression> {
-        vec![Expression::UnaryOperation(
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
             Box::new(Expression::Variable(Rc::clone(&self.variable))),
-            UnaryOperation::Ref)]
+            UnaryOperation::Ref))]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        None
+    }
+}
+
+// --------------- Lists ---------------
+
+pub struct ListInitCall {}
+
+impl ForeignFunctionCall for ListInitCall {
+    fn get_name(&self) -> &str {
+        "list_init"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![]
+    }
+
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![]
+    }
+
+    fn return_type(&self) -> Option<DataType> {
+        Some(DataType::Reference(Box::new(
+            DataType::Foreign(ForeignType::List(Box::new(DataType::Generic(None)))))))
+    }
+}
+
+pub struct ListAddHeadCall {
+    variable: Rc<Variable>,
+    item: Rc<Expression>,
+}
+
+impl ListAddHeadCall {
+    pub fn new(variable: Rc<Variable>, item: Expression) -> ListAddHeadCall {
+        ListAddHeadCall { variable, item: Rc::new(item) }
+    }
+}
+
+impl ForeignFunctionCall for ListAddHeadCall {
+    fn get_name(&self) -> &str {
+        "list_add_item_to_head"
+    }
+
+    fn get_parameter_types(&self) -> Vec<DataType> {
+        vec![DataType::Reference(Box::new(
+            DataType::Foreign(
+                ForeignType::List(Box::new(self.variable.data_type().unwrap())))))/*,
+        DataType::Generic(None)*/]
+    }
+
+    fn get_args(&self) -> Vec<Rc<Expression>> {
+        vec![Rc::new(Expression::UnaryOperation(
+            Box::new(Expression::Variable(Rc::clone(&self.variable))),
+            UnaryOperation::Ref)),
+             Rc::clone(&self.item)]
     }
 
     fn return_type(&self) -> Option<DataType> {

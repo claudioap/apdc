@@ -1,37 +1,24 @@
+use std::borrow::Borrow;
 use std::rc::Rc;
 use std::fmt;
 use std::hash::Hasher;
+use std::cell::RefCell;
 use std::collections::HashMap;
-use crate::yggl::data::{DataType, Constant};
+use crate::parser::CompilationError;
+use crate::yggl::data::DataType;
 use crate::yggl::environment::Variable;
 use crate::yggl::expression::Expression;
-use std::cell::RefCell;
+use crate::yggl::foreign::ForeignFunctionCall;
+use crate::yggl::statement::Statement;
 
-#[allow(dead_code)]
+#[derive(Clone)]
 pub enum Attribute {
-    Local(LocalAttribute),
-    Foreign(ForeignAttribute),
+    Local(Rc<LocalAttribute>),
+    Foreign(Rc<ForeignAttribute>),
 }
-
-pub struct LocalAttribute {
-    name: String,
-    dtype: RefCell<Option<DataType>>,
-}
-
-pub struct ForeignAttribute {
-    name: String,
-    dtype: RefCell<Option<DataType>>,
-    write_lambda: fn(Vec<Expression>) -> Option<Constant>,
-    read_lambda: fn(Vec<Expression>) -> Option<Constant>,
-}
-
 
 impl Attribute {
-    pub fn new(name: String, dtype: Option<DataType>) -> Attribute {
-        Attribute::Local(LocalAttribute { name, dtype: RefCell::new(dtype) })
-    }
-
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Attribute::Local(local) => local.name.as_str(),
             Attribute::Foreign(foreign) => foreign.name.as_str(),
@@ -40,35 +27,119 @@ impl Attribute {
 
     pub fn data_type(&self) -> Option<DataType> {
         match self {
-            Attribute::Local(local) => local.dtype.borrow().clone(),
-            Attribute::Foreign(foreign) => foreign.dtype.borrow().clone()
+            Attribute::Local(local) => local.data_type(),
+            Attribute::Foreign(foreign) => foreign.data_type(),
         }
     }
 
-    pub fn set_data_type(&self, dtype: Option<DataType>) {
+    pub fn set_data_type(&self, dtype: Option<DataType>) -> Result<(), String> {
         match self {
             Attribute::Local(local) => {
-                let current = local.dtype.borrow().clone();
-                if current != None {
-                    if current != dtype {
-                        panic!("Changed attribute datatype");
+                match &*(local.dtype.borrow()) {
+                    Some(odtype) => {
+                        if let Some(ndtype) = &dtype {
+                            if ndtype == odtype {
+                                Ok(())
+                            } else {
+                                Err(format!("Attempted to change a datatype"))
+                            }
+                        } else {
+                            Err(format!("Attempted to nullify a datatype"))
+                        }
                     }
-                    if dtype == None {
-                        panic!("Nullified non-null attribute datatype.")
+                    None => {
+                        local.dtype.replace(dtype);
+                        Ok(())
                     }
                 }
-
-                local.dtype.replace(dtype);
             }
-            _ => { panic!("Cannot set the data type of a foreign attribute.") }
+            Attribute::Foreign(foreign) => {
+                if foreign.data_type() == dtype {
+                    Ok(())
+                } else {
+                    Err(format!("Attempted to change a foreign attribute data type"))
+                }
+            }
+        }
+    }
+}
+
+pub struct LocalAttribute {
+    name: String,
+    dtype: RefCell<Option<DataType>>,
+}
+
+impl LocalAttribute {
+    pub fn new(name: String, dtype: Option<DataType>) -> LocalAttribute {
+        LocalAttribute { name, dtype: RefCell::new(dtype) }
+    }
+
+    pub fn get_name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn read_statement(&self, variable: Rc<Variable>, this: Rc<LocalAttribute>, arguments: Vec<Expression>)
+                          -> Result<Expression, CompilationError> {
+        if arguments.len() > 0 {
+            return Err(CompilationError::new(
+                0, 0, "".to_string(),
+                "Local attributes do not take arguments".to_string()));
+        }
+        Ok(Expression::AttributeAccess(variable, this))
+    }
+
+    pub fn write_statement(&self, variable: Rc<Variable>, this: Rc<LocalAttribute>, mut arguments: Vec<Expression>)
+                           -> Result<Statement, CompilationError> {
+        if arguments.len() > 0 {
+            return Err(CompilationError::new(
+                0, 0, "".to_string(),
+                "Local attribute write takes one argument".to_string()));
+        }
+        let value = arguments.remove(0);
+        Ok(Statement::AttributeAssignment(variable, this, value))
+    }
+
+    pub fn data_type(&self) -> Option<DataType> {
+        self.dtype.borrow().clone()
+    }
+
+    pub fn set_data_type(&self, dtype: DataType) {
+        let current = self.dtype.borrow().clone();
+        let new = Some(dtype);
+        if current != None {
+            if current != new {
+                panic!("Changed attribute datatype");
+            }
+        }
+        self.dtype.replace(new);
+    }
+}
+
+pub struct ForeignAttribute {
+    name: String,
+    dtype: RefCell<Option<DataType>>,
+    handler: fn(Rc<Variable>, Vec<Expression>) -> Box<dyn ForeignFunctionCall>
+}
+
+impl ForeignAttribute {
+    pub fn new(name: String, dtype: Option<DataType>,
+               handler: fn(Rc<Variable>, Vec<Expression>) -> Box<dyn ForeignFunctionCall>)
+               -> ForeignAttribute {
+        ForeignAttribute {
+            name,
+            dtype: RefCell::new(dtype),
+            handler
         }
     }
 
-    pub fn access_transpile(&self, var: &Rc<Variable>) -> String {
-        match self {
-            Attribute::Local(attr) => format!("{}->{}", var.get_identifier(), attr.name),
-            Attribute::Foreign(_attr) => unimplemented!(),
-        }
+
+    pub fn handle(&self, variable: Rc<Variable>, arguments: Vec<Expression>)
+                     -> Result<Box<dyn ForeignFunctionCall>, CompilationError> {
+        Ok((self.handler)(variable, arguments))
+    }
+
+    pub fn data_type(&self) -> Option<DataType> {
+        self.dtype.borrow().clone()
     }
 }
 
@@ -76,45 +147,41 @@ impl std::cmp::Eq for Attribute {}
 
 impl std::cmp::PartialEq for Attribute {
     fn eq(&self, other: &Attribute) -> bool {
-        self.get_name() == other.get_name()
+        self.name() == other.name()
     }
 }
 
 
 impl std::hash::Hash for Attribute {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.get_name().hash(state);
+        self.name().hash(state);
     }
 }
 
 impl fmt::Display for Attribute {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Attribute::Local(attribute) => {
-                if let Some(dtype) = &attribute.dtype.borrow().clone() {
-                    write!(f, "{} {}", dtype.transpile(), attribute.name)
-                } else {
-                    write!(f, "unknown {}", attribute.name)
-                }
-            }
-            _ => { write!(f, "TODO") }
+        if let Some(dtype) = self.data_type() {
+            write!(f, "{} {}", dtype.transpile(), self.name())
+        } else {
+            write!(f, "unknown {}", self.name())
         }
     }
 }
 
 pub struct StructDecl {
     name: String,
-    attributes: Vec<Rc<Attribute>>,
+    attributes: Vec<Attribute>,
     exported: bool,
+    implicit: bool,
 }
 
-
 impl StructDecl {
-    pub fn new(name: String, attributes: Vec<Rc<Attribute>>) -> StructDecl {
+    pub fn new(name: String, attributes: Vec<Attribute>) -> StructDecl {
         StructDecl {
             name,
             attributes,
             exported: false,
+            implicit: false,
         }
     }
 
@@ -122,10 +189,10 @@ impl StructDecl {
         self.name.as_str().to_string()
     }
 
-    pub fn get_attribute(&self, name: &str) -> Option<Rc<Attribute>> {
+    pub fn get_attribute(&self, name: &str) -> Option<Attribute> {
         for attribute in &self.attributes {
-            if attribute.get_name() == name {
-                return Some(Rc::clone(&attribute));
+            if attribute.name() == name {
+                return Some(attribute.clone());
             }
         }
         None
@@ -139,8 +206,16 @@ impl StructDecl {
         self.exported = true;
     }
 
+    pub fn set_implicit(&mut self) {
+        self.implicit = true;
+    }
+
     pub fn transpile(&self) -> String {
-        format!("{}\n", self)
+        if self.implicit {
+            "".to_string()
+        } else {
+            format!("typedef {}\n", self)
+        }
     }
 }
 
@@ -158,14 +233,15 @@ impl std::hash::Hash for StructDecl {
     }
 }
 
-
 impl fmt::Display for StructDecl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut attribute_def = String::new();
         for attribute in &self.attributes {
-            attribute_def.push_str(format!("    {},\n", attribute).as_str());
+            if let Attribute::Local(_) = attribute.borrow() {
+                attribute_def.push_str(format!("    {},\n", attribute).as_str());
+            }
         }
-        write!(f, "struct {} {{ \n{}}}", self.name, attribute_def)
+        write!(f, "struct {} {{ \n{}}} {};", self.name, attribute_def, self.name)
     }
 }
 

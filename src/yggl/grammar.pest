@@ -8,7 +8,7 @@ reserved_words = {
     |"Protocol"|ygg_type|"handles"|"setup"|"send"|"notify"}
 
 
-statement = {assignment|conditional_if|cycle|function_return|declaration|cast|ygg_statements}
+statement = {assignment|conditional_if|cycle|attribute_call|function_return|declaration|cast|ygg_statements}
 program = _{ SOI ~ (proto_def|function|struct_decl|constant_assignment)+ ~ EOI }
 
 /* ########## LITERALS ########## */
@@ -60,7 +60,7 @@ fun_t = {"fun"}
 identifier = @{!ASCII_DIGIT ~(ASCII_ALPHANUMERIC | "_" | "-")+}
 cast = { identifier ~ "as" ~ dtype }
 value = _{ string | number | boolean | dict | time_value }
-evaluable = _{ "("~ evaluable ~")" | function_call | attribute | value | identifier }
+evaluable = _{ "("~ evaluable ~")" | function_call | attribute | attribute_call | value | identifier }
 
 /* ########## OPERATIONS ########## */
 unop = {neg}
@@ -109,6 +109,7 @@ struct_decl = {
 struct_decl_body = {(identifier ~ ",")* ~ identifier}
 struct_def = { identifier ~ (("{" ~ "}")|dict) }
 attribute = { identifier ~ "." ~ identifier}
+attribute_call = { attribute ~ "(" ~ arguments? ~ ")"}
 list_init = { "[" ~ arguments? ~ "]" }
 
 /* ########## Functions ########## */

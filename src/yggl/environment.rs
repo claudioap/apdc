@@ -6,9 +6,12 @@ use crate::yggl::data::{Constant, DataType};
 use crate::yggl::function::Function;
 use crate::yggl::protocol::Include;
 use crate::yggl::structure::StructDecl;
+use crate::yggl::embedded::list;
 
 // Count of auxiliary variables
 static mut AUX_COUNT: i32 = 0;
+// Built in types load flag
+static mut BUILT_IN_LOADED: bool = false;
 
 /// A program has a set of environments, which hold variable data.
 /// A scope is a slice of the current environment.
@@ -23,7 +26,13 @@ pub struct Environment {
 impl Environment {
     pub fn new() -> Environment {
         let mut scopes = VecDeque::new();
-        let scope = HashMap::new();
+        let mut scope = HashMap::new();
+        unsafe {
+            if !BUILT_IN_LOADED {
+                BUILT_IN_LOADED = true;
+                scope.insert("list".to_string(), Symbol::StructDecl(Rc::new(list())));
+            }
+        }
         scopes.push_back(scope);
         Environment { scopes, includes: HashSet::new() }
     }
@@ -82,7 +91,6 @@ impl Environment {
             self.declare(identifier.as_str())
         }
     }
-
 
     pub fn set_defines(&mut self, identifier: &str, constant: Constant) {
         let scope = self.scopes.front_mut().unwrap();

@@ -30,9 +30,9 @@ impl DataType {
             DataType::Char => "char".to_string(),
             DataType::String | DataType::Function =>
                 panic!("Not meant to be transpiled."),
-            DataType::Struct(ref decl) => format!("struct {}", decl.get_name()),
-            DataType::Reference(ref dtype) => format!("{} *", dtype.transpile()),
-            DataType::Foreign(ref foreign) => format!("{}", foreign),
+            DataType::Struct(decl) => format!("{}", decl.get_name()),
+            DataType::Reference(dtype) => format!("{}*", dtype.transpile()),
+            DataType::Foreign(foreign) => format!("{}", foreign),
             _ => unimplemented!()
         }
     }

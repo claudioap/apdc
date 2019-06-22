@@ -13,11 +13,11 @@ use crate::yggl::statement::Statement;
 use crate::yggl::environment::{Variable, Environment, Symbol};
 use crate::yggl::function::*;
 use crate::yggl::flow::{Conditional, Cycle};
-use crate::yggl::structure::{StructDef, StructDecl, Attribute};
+use crate::yggl::structure::{StructDef, StructDecl, Attribute, LocalAttribute};
 use crate::yggl::protocol::{ProtocolDef, Interface, Handler, YggType, Include, Protocol};
 use crate::yggl::timer::{TimerType, TimeUnit};
 use crate::yggl::networking::Address;
-use crate::yggl::foreign::{Message, Timer, Event};
+use crate::yggl::foreign::{Message, Timer, Event, ListInitCall, ForeignFunctionCall};
 
 #[derive(Parser)]
 #[grammar = "yggl/grammar.pest"]
@@ -142,6 +142,20 @@ impl Statement {
                 let identifier = pair.as_str();
                 Ok(Statement::Declaration(env.declare(identifier)))
             }
+            Rule::attribute_call => {
+                let mut inner = pair.into_inner();
+                let (var, attribute) = get_attribute(inner.next().unwrap(), env)?;
+                let arguments = read_arguments(inner.next().unwrap(), env)?;
+                match attribute {
+                    Attribute::Foreign(foreign) => {
+                        let call = foreign.handle(var, arguments)?;
+                        Ok(Statement::ForeignCall(call))
+                    }
+                    _ => Err(CompilationError::new(
+                        0, 0, "".to_string(),
+                        format!("Attempted to call a non callable attribute {}", attribute.name())))
+                }
+            }
             Rule::function_return => {
                 let expression = Expression::from(pair.into_inner().next().unwrap(), &env)?;
                 Ok(Statement::Return(expression))
@@ -189,7 +203,7 @@ impl Statement {
                         env.declare(identifier)
                 };
 
-                let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
+                let _arguments = read_arguments(inner.next().unwrap(), env)?;
 //                let struct_decl = match env.get(identifier) {
 //                    Some(Symbol::StructDecl(decl)) => decl,
 //                    Some(_) => return Err(CompilationError::new(
@@ -225,7 +239,7 @@ impl Statement {
                 let aux_var = env.declare_aux();
                 let message = Message::new(Rc::clone(&aux_var));
                 let address = Address::from(inner.next().unwrap())?;
-                let _arguments = Function::read_arguments(inner.next().unwrap(), env)?;
+                let _arguments = read_arguments(inner.next().unwrap(), env)?;
                 let statements = vec![
                     Statement::Declaration(Rc::clone(&aux_var)),
                     Statement::ForeignCall(Box::new(message.get_init_call(address))),
@@ -264,9 +278,16 @@ impl Statement {
                         }
                     }
                     Rule::attribute => {
-                        let var_attr_pair = Statement::obtain_attribute(
-                            lhs_pair, env, expression.data_type())?;
-                        Ok(Statement::AttributeAssignment(var_attr_pair.0, var_attr_pair.1, expression))
+                        let (var, attribute) = get_attribute(lhs_pair, env)?;
+                        if let Err(message) = attribute.set_data_type(expression.data_type()) {
+                            return Err(CompilationError::new(0, 0, "".to_string(), message));
+                        }
+                        match attribute {
+                            Attribute::Local(local) =>
+                                Ok(Statement::AttributeAssignment(var, local, expression)),
+                            Attribute::Foreign(foreign) =>
+                                Ok(Statement::ForeignCall(foreign.handle(var, vec![expression])?)),
+                        }
                     }
                     _ => unreachable!("Unknown assignment LHS")
                 }
@@ -278,7 +299,8 @@ impl Statement {
 
                 match lhs_pair.as_rule() {
                     Rule::identifier => {
-                        let identifier = Statement::obtain_identifier(lhs_pair, env, DataType::Struct(struct_decl))?;
+                        let identifier = Statement::obtain_identifier(
+                            lhs_pair, env, DataType::Struct(struct_decl))?;
                         match identifier {
                             Symbol::Variable(var) => {
                                 Ok(Statement::StructDef(Rc::clone(&var), struct_def_rc))
@@ -291,12 +313,46 @@ impl Statement {
                         }
                     }
                     Rule::attribute => {
-                        unimplemented!("Direct structure assignment to attribute is not currenly implemented.");
+                        unimplemented!("Direct structure assignment to attribute is not currently implemented.");
                     }
                     _ => unreachable!()
                 }
             }
-            _ => unreachable!()
+            Rule::list_init => {
+                let list_decl = env.get("list");
+                if let Some(Symbol::StructDecl(list)) = list_decl {
+                    match lhs_pair.as_rule() {
+                        Rule::identifier => {
+                            let identifier = Statement::obtain_identifier(
+                                lhs_pair, env,
+                                DataType::Reference(Box::new(
+                                    DataType::Struct(Rc::clone(&list)))))?;
+                            match identifier {
+                                Symbol::Variable(var) => {
+                                    let init_call = Box::new(ListInitCall {});
+                                    var.set_type(init_call.return_type().unwrap());
+                                    let statement = Statement::Composite(vec![
+                                        Statement::Assignment(Rc::clone(&var), Expression::Foreign(init_call))
+                                    ]);
+                                    Ok(statement)
+                                }
+                                Symbol::Define(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                                    Err(CompilationError::new(
+                                        0, 0, "".to_string(),
+                                        format!("Attribution to constant field.")))
+                                }
+                            }
+                        }
+                        Rule::attribute => {
+                            unimplemented!("Direct structure assignment to attribute is not currently implemented.")
+                        }
+                        _ => unreachable!()
+                    }
+                } else {
+                    unreachable!()
+                }
+            }
+            _ => unreachable!("{}", rhs_pair)
         }
     }
 
@@ -324,36 +380,6 @@ impl Statement {
             Ok(symbol.clone())
         } else {
             unreachable!();
-        }
-    }
-
-    fn obtain_attribute(pair: Pair<Rule>, env: &mut Environment, dtype: Option<DataType>)
-                        -> Result<(Rc<Variable>, Rc<Attribute>), CompilationError> {
-        // TODO  validate data type
-        let mut inner = pair.into_inner();
-        let identifier_str = inner.next().unwrap().as_str();
-        let attribute_str = inner.next().unwrap().as_str();
-
-        if let Some(Symbol::Variable(var)) = env.get(identifier_str) {
-            let variable = Rc::clone(&var);
-            if let Some(DataType::Struct(decl)) = variable.data_type() {
-                if let Some(attr) = decl.get_attribute(attribute_str) {
-                    attr.set_data_type(dtype);
-                    Ok((variable, attr))
-                } else {
-                    Err(CompilationError::new(
-                        0, 0, "".to_string(),
-                        format!("Attribute {} not found", attribute_str)))
-                }
-            } else {
-                Err(CompilationError::new(
-                    0, 0, "".to_string(),
-                    format!("Attribution to attribute of non-struct {}", identifier_str)))
-            }
-        } else {
-            Err(CompilationError::new(
-                0, 0, "".to_string(),
-                format!("Attribution to attribute of non-struct {}", identifier_str)))
         }
     }
 }
@@ -460,11 +486,19 @@ impl Expression {
                             match var.data_type() {
                                 Some(DataType::Struct(struct_decl)) => {
                                     if let Some(attr) = struct_decl.get_attribute(attr_name) {
-                                        Ok(Expression::AttributeAccess(var, attr))
+                                        match attr {
+                                            Attribute::Local(local) =>
+                                                Ok(Expression::AttributeAccess(var, local)),
+                                            Attribute::Foreign(foreign) => {
+                                                Ok(Expression::Foreign(
+                                                    foreign.handle(var, vec![])?))
+                                            }
+                                        }
                                     } else {
                                         Err(CompilationError::new(
                                             0, 0, "".to_string(),
-                                            format!("Unable to access \"{}\".\"{}\"", object_name, attr_name)))
+                                            format!("Unable to access \"{}\".\"{}\"",
+                                                    object_name, attr_name)))
                                     }
                                 }
                                 _ =>
@@ -704,15 +738,6 @@ impl Function {
         Ok(parameters)
     }
 
-    fn read_arguments(pair: Pair<Rule>, env: &Environment) -> Result<Vec<Expression>, CompilationError> {
-        let mut arguments = vec!();
-        for argument_pair in pair.into_inner() {
-            let argument = Expression::from(argument_pair, env)?;
-            arguments.push(argument);
-        }
-        Ok(arguments)
-    }
-
     fn read_body(pair: Pair<Rule>, mut function_env: &mut Environment)
                  -> Result<Vec<Statement>, CompilationError> {
         let mut statements = vec![];
@@ -739,7 +764,7 @@ impl Function {
     pub fn parse_call(pair: Pair<Rule>, env: &Environment) -> Result<Statement, CompilationError> {
         let mut inner_rules = pair.into_inner();
         let identifier = inner_rules.next().unwrap().as_str();
-        let arguments = Function::read_arguments(inner_rules.next().unwrap(), env)?;
+        let arguments = read_arguments(inner_rules.next().unwrap(), env)?;
         if identifier == "print" {
             Ok(Statement::Print(arguments))
         } else {
@@ -790,11 +815,12 @@ impl StructDecl {
         }
     }
 
-    fn read_body(pair: Pair<Rule>) -> Vec<Rc<Attribute>> {
+    fn read_body(pair: Pair<Rule>) -> Vec<Attribute> {
         let mut attributes = vec!();
         for pair in pair.into_inner() {
-            let attribute = Attribute::new(pair.as_str().to_string(), None);
-            attributes.push(Rc::new(attribute));
+            let attribute = Attribute::Local(
+                Rc::new(LocalAttribute::new(pair.as_str().to_string(), None)));
+            attributes.push(attribute);
         }
         attributes
     }
@@ -1013,5 +1039,67 @@ impl Address {
             Rule::broadcast_address => Ok(Address::Broadcast),
             _ => unimplemented!()
         }
+    }
+}
+
+
+fn read_arguments(pair: Pair<Rule>, env: &Environment) -> Result<Vec<Expression>, CompilationError> {
+    let mut arguments = vec!();
+    for argument_pair in pair.into_inner() {
+        let argument = Expression::from(argument_pair, env)?;
+        arguments.push(argument);
+    }
+    Ok(arguments)
+}
+
+
+fn get_attribute(pair: Pair<Rule>, env: &mut Environment)
+                 -> Result<(Rc<Variable>, Attribute), CompilationError> {
+    let mut inner = pair.into_inner();
+    let identifier_str = inner.next().unwrap().as_str();
+    let attribute_str = inner.next().unwrap().as_str();
+
+    if let Some(Symbol::Variable(var)) = env.get(identifier_str) {
+        let variable = Rc::clone(&var);
+        let decl = if let Some(dtype) = var.data_type() {
+            if let Some(decl) = get_struct_decl_from_type(&dtype, env) {
+                decl
+            } else {
+                return Err(CompilationError::new(
+                    0, 0, "".to_string(),
+                    format!("Access to attribute of non-struct {}", identifier_str)));
+            }
+        } else {
+            return Err(CompilationError::new(
+                0, 0, "".to_string(),
+                format!("Access to attribute of unknown {}", identifier_str)));
+        };
+
+        if let Some(attr) = decl.get_attribute(attribute_str) {
+            Ok((variable, attr))
+        } else {
+            Err(CompilationError::new(
+                0, 0, "".to_string(),
+                format!("Attribute {} not found", attribute_str)))
+        }
+    } else {
+        Err(CompilationError::new(
+            0, 0, "".to_string(),
+            format!("Attribution to attribute of non-struct {}", identifier_str)))
+    }
+}
+
+fn get_struct_decl_from_type(dtype: &DataType, env: &Environment) -> Option<Rc<StructDecl>> {
+    match dtype {
+        DataType::Struct(decl) => Some(Rc::clone(decl)),
+        DataType::Reference(idtype) => get_struct_decl_from_type(idtype, env),
+        DataType::Foreign(foreign) => {
+            if let Some(Symbol::StructDecl(decl)) = env.get(foreign.name()) {
+                Some(decl)
+            } else {
+                None
+            }
+        }
+        _ => None
     }
 }

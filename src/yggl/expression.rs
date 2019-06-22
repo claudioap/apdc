@@ -2,7 +2,7 @@ use std::{fmt, ops};
 use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::data::{Constant, DataType};
-use crate::yggl::structure::Attribute;
+use crate::yggl::structure::LocalAttribute;
 use crate::yggl::function::FunctionCall;
 use crate::yggl::foreign::ForeignFunctionCall;
 
@@ -13,9 +13,9 @@ pub enum Expression {
     Constant(Constant),
     UnaryOperation(Box<Expression>, UnaryOperation),
     BinaryOperation(Box<Expression>, BinaryOperation, Box<Expression>),
-    AttributeAccess(Rc<Variable>, Rc<Attribute>),
+    AttributeAccess(Rc<Variable>, Rc<LocalAttribute>),
     Call(FunctionCall),
-    Foreign(Box<dyn ForeignFunctionCall>),// TODO merge with previous
+    Foreign(Box<dyn ForeignFunctionCall>),
 }
 
 impl Expression {
@@ -133,13 +133,12 @@ impl Expression {
         match self {
             Expression::Constant(c) => format!("{}", c),
             Expression::Variable(v) => format!("{}", v.get_identifier()),
-            Expression::UnaryOperation(exp, op) => {
-                format!("({}{})", op, exp.transpile())
-            }
-            Expression::BinaryOperation(lhs, op, rhs) => {
-                format!("({} {} {})", lhs.transpile(), op, rhs.transpile())
-            }
-            Expression::AttributeAccess(var, attr) => attr.access_transpile(&var),
+            Expression::UnaryOperation(exp, op) =>
+                format!("({}{})", op, exp.transpile()),
+            Expression::BinaryOperation(lhs, op, rhs) =>
+                format!("({} {} {})", lhs.transpile(), op, rhs.transpile()),
+            Expression::AttributeAccess(var, attr) =>
+                format!("{}->{}", var.get_identifier(), attr.get_name()),
             Expression::Call(call) => call.transpile(),
             Expression::Foreign(call) => call.transpile(),
         }
@@ -158,11 +157,11 @@ impl fmt::Display for Expression {
             Expression::BinaryOperation(l, op, r) =>
                 write!(f, "({}{}{})", l, op, r),
             Expression::AttributeAccess(var, attr) =>
-                write!(f, "{}", attr.access_transpile(&var)),
+                write!(f, "{}->{}", var.get_identifier(), attr.get_name()),
             Expression::Call(call) =>
                 write!(f, "{}", call.transpile()),
             Expression::Foreign(call) =>
-                write!(f, "{}", call.transpile()),
+                write!(f, "{}", call.transpile())
         }
     }
 }

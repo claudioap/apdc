@@ -5,7 +5,7 @@ use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::expression::Expression;
 use crate::yggl::function::{FunctionCall, Function};
 use crate::yggl::flow::{Conditional, Cycle};
-use crate::yggl::structure::{StructDef, StructDecl, Attribute};
+use crate::yggl::structure::{StructDef, StructDecl, LocalAttribute};
 use crate::yggl::foreign::ForeignFunctionCall;
 
 /// Statements are standalone instructions.
@@ -15,8 +15,10 @@ pub enum Statement {
     Declaration(Rc<Variable>),
     Allocation(Rc<Variable>, Rc<StructDecl>),
     Assignment(Rc<Variable>, Expression),
+    // TODO Remove, possibly repl with empty composite
     StructDecl(Rc<StructDecl>),
     StructDef(Rc<Variable>, Rc<StructDef>),
+    // TODO Remove, possibly repl with empty composite
     FunctionDef(Rc<Function>),
     Call(FunctionCall),
     ForeignCall(Box<dyn ForeignFunctionCall>),
@@ -24,7 +26,7 @@ pub enum Statement {
     Cycle(Cycle),
     Print(Vec<Expression>),
     Return(Expression),
-    AttributeAssignment(Rc<Variable>, Rc<Attribute>, Expression),
+    AttributeAssignment(Rc<Variable>, Rc<LocalAttribute>, Expression),
     Composite(Vec<Statement>),
 }
 
@@ -48,12 +50,9 @@ impl Statement {
         match self {
             Statement::Declaration(var) => {
                 match var.data_type() {
-                    Some(DataType::Struct(decl)) => {
-                        format!("{}* {};", DataType::Struct(decl).transpile(), var.get_identifier())
-                    }
                     Some(dtype) => {
                         format!("{} {};", dtype.transpile(), var.get_identifier())
-                    },
+                    }
                     None => {
                         panic!("Variable {} has an unknown type", var)
                     }
