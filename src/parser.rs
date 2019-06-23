@@ -320,6 +320,8 @@ impl Statement {
             }
             Rule::list_init => {
                 let list_decl = env.get("list");
+                let init_call = Box::new(ListInitCall {});
+
                 if let Some(Symbol::StructDecl(list)) = list_decl {
                     match lhs_pair.as_rule() {
                         Rule::identifier => {
@@ -329,7 +331,6 @@ impl Statement {
                                     DataType::Struct(Rc::clone(&list)))))?;
                             match identifier {
                                 Symbol::Variable(var) => {
-                                    let init_call = Box::new(ListInitCall {});
                                     var.set_type(init_call.return_type().unwrap());
                                     let statement = Statement::Composite(vec![
                                         Statement::Assignment(Rc::clone(&var), Expression::Foreign(init_call))
@@ -344,7 +345,21 @@ impl Statement {
                             }
                         }
                         Rule::attribute => {
-                            unimplemented!("Direct structure assignment to attribute is not currently implemented.")
+                            let (var, attrib) = get_attribute(lhs_pair, env)?;
+                            let dtype = Some(DataType::Reference(Box::new(
+                                DataType::Struct(Rc::clone(&list)))));
+                            if let Err(message) = attrib.set_data_type(dtype) {
+                                return Err(CompilationError::new(
+                                    0, 0, "".to_string(), message));
+                            }
+                            let statements = match attrib {
+                                Attribute::Local(local) => vec![
+                                    Statement::AttributeAssignment(
+                                        var, local, Expression::Foreign(init_call))],
+                                Attribute::Foreign(_) => unimplemented!(),
+                            };
+                            let statement = Statement::Composite(statements);
+                            Ok(statement)
                         }
                         _ => unreachable!()
                     }

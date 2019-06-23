@@ -35,9 +35,10 @@ impl Attribute {
     pub fn set_data_type(&self, dtype: Option<DataType>) -> Result<(), String> {
         match self {
             Attribute::Local(local) => {
-                match &*(local.dtype.borrow()) {
+                let odtype = local.dtype.borrow().clone();
+                match odtype {
                     Some(odtype) => {
-                        if let Some(ndtype) = &dtype {
+                        if let Some(ndtype) = dtype {
                             if ndtype == odtype {
                                 Ok(())
                             } else {

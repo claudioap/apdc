@@ -111,7 +111,13 @@ impl Statement {
             Statement::ForeignCall(call) => {
                 format!("{};", call.transpile())
             }
-            _ => { unimplemented!() }
+            Statement::Call(call) => {
+                format!("{};", call.transpile())
+            }
+            Statement::AttributeAssignment(var, attrib, exp) => {
+                format!("{}->{} = {};", var.get_identifier(), attrib.get_name(), exp.transpile())
+            }
+            Statement::Composite(_) => { unreachable!("Leftover composite statement") }
         }
     }
 }
