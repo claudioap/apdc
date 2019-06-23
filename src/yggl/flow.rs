@@ -1,15 +1,14 @@
 use crate::yggl::expression::Expression;
 use crate::yggl::statement::Statement;
 use crate::yggl::environment::Environment;
+use crate::yggl::data::Constant;
 
-#[allow(dead_code)]
 pub struct Conditional {
     condition: Option<Expression>,
     statements: Vec<Statement>,
     sibling: Option<Box<Conditional>>,
 }
 
-#[allow(dead_code)]
 impl Conditional {
     pub fn new(condition: Option<Expression>, statements: Vec<Statement>) -> Conditional {
         Conditional {
@@ -47,7 +46,6 @@ impl Conditional {
     }
 }
 
-#[allow(dead_code)]
 pub enum Cycle {
     Loop(Vec<Box<Statement>>),
     While(Expression, Vec<Box<Statement>>),
@@ -55,7 +53,6 @@ pub enum Cycle {
     For(Box<Statement>, Expression, Option<Box<Statement>>, Vec<Box<Statement>>),
 }
 
-#[allow(dead_code)]
 impl Cycle {
     pub fn transpile(&self, env: &Environment) -> String {
         let mut output = String::new();
@@ -104,6 +101,49 @@ impl Cycle {
                 output.push('}');
             }
         }
+        output
+    }
+}
+
+pub struct Switch {
+    exp: Expression,
+    cases: Vec<Case>
+}
+
+impl Switch {
+    pub fn new(exp: Expression, cases: Vec<Case>) -> Switch {
+        Switch{exp, cases}
+    }
+    pub fn transpile(&self, env: &Environment) -> String{
+        let mut output = format!("switch({}){{\n", self.exp.transpile());
+        for case in &*self.cases {
+            let mut case_transp = case.transpile(env);
+            case_transp = case_transp.replace("\n", "\n\t");
+            output.push('\t');
+            output.push_str(case_transp.as_str());
+            output.push('\n');
+        }
+        output.push_str("};");
+        output
+    }
+}
+
+pub struct Case {
+    value: Constant,
+    statements: Vec<Statement>
+}
+
+impl Case {
+    pub fn new(value: Constant, statements: Vec<Statement>) -> Case {
+        Case{value, statements}
+    }
+
+    pub fn transpile(&self, env: &Environment) -> String{
+        let mut output = format!("case {}:\n", self.value);
+        for statement in &*self.statements{
+            output.push_str(format!("\t{}\n", statement.transpile(env)).as_str());
+        }
+        output.push_str("\tbreak;");
         output
     }
 }

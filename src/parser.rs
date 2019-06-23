@@ -10,7 +10,7 @@ use pest::prec_climber::*;
 use crate::yggl::data::{Constant, DataType};
 use crate::yggl::expression::{Expression, BinaryOperation};
 use crate::yggl::statement::Statement;
-use crate::yggl::environment::{Variable, Environment, Symbol};
+use crate::yggl::environment::{Variable, Environment, Symbol, Label};
 use crate::yggl::function::*;
 use crate::yggl::flow::{Conditional, Cycle};
 use crate::yggl::structure::{StructDef, StructDecl, Attribute, LocalAttribute};
@@ -270,7 +270,7 @@ impl Statement {
                             Symbol::Variable(var) => {
                                 Ok(Statement::Assignment(Rc::clone(&var), expression))
                             }
-                            Symbol::Define(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                            _ => {
                                 Err(CompilationError::new(
                                     0, 0, "".to_string(),
                                     format!("Attribution to constant field.")))
@@ -305,7 +305,7 @@ impl Statement {
                             Symbol::Variable(var) => {
                                 Ok(Statement::StructDef(Rc::clone(&var), struct_def_rc))
                             }
-                            Symbol::Define(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                            _ => {
                                 Err(CompilationError::new(
                                     0, 0, "".to_string(),
                                     format!("Attribution to constant field.")))
@@ -337,7 +337,7 @@ impl Statement {
                                     ]);
                                     Ok(statement)
                                 }
-                                Symbol::Define(_) | Symbol::Function(_) | Symbol::StructDecl(_) => {
+                                _ => {
                                     Err(CompilationError::new(
                                         0, 0, "".to_string(),
                                         format!("Attribution to constant field.")))
@@ -922,6 +922,7 @@ impl ProtocolDef {
         if let Some(func) = loop_func {
             protocol.add_main_loop(func);
         }
+        protocol.add_handlers(handlers);
 
 
         Ok(protocol)
@@ -1009,12 +1010,26 @@ impl Handler {
     pub fn from(proto_name: &str, pair: Pair<Rule>, env: &mut Environment) -> Result<Handler, CompilationError> {
         let mut inner = pair.into_inner();
         let ytype = ProtocolDef::read_ygg_type(inner.next().unwrap());
-        let identifier = inner.next().unwrap().as_str().to_string();
+        let identifier = inner.next().unwrap().as_str();
+        let label = match env.get(identifier) {
+            Some(Symbol::Label(label)) => {
+                if label.get_type() == ytype {
+                    label
+                } else {
+                    unreachable!(format!("Label {} is used for different types", identifier))
+                }
+            }
+            None =>
+                env.add_label(Label::new(identifier.to_string(), ytype.clone())),
+            _ => return Err(CompilationError::new(
+                0, 0, "".to_string(),
+                format!("The label {} is being reused", identifier)))
+        };
         let function = Function::anonymous_from(
             inner.next().unwrap(), env,
             format!("{}_{}_{}_handler", proto_name, ytype, identifier))?;
         let function_rc = env.add_function(function);
-        Ok(Handler::new(identifier, ytype, function_rc))
+        Ok(Handler::new(label, function_rc))
     }
 }
 

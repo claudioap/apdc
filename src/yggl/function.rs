@@ -19,7 +19,6 @@ pub struct Function {
     exported: bool,
 }
 
-#[allow(dead_code)]
 impl Function {
     pub fn new(environment: Environment, name: String, parameters: Vec<Rc<Variable>>,
                mut statements: Vec<Statement>) -> Result<Function, CompilationError> {
@@ -141,8 +140,8 @@ impl Function {
         }
         for statement in &self.statements {
             result.push_str(format!(
-                "    {}\n",
-                statement.transpile(&self.environment)).as_str());
+                "\t{}\n",
+                statement.transpile(&self.environment).replace("\n", "\n\t")).as_str());
         }
         result.push_str("}\n");
         result
@@ -161,13 +160,11 @@ impl Function {
     }
 }
 
-#[allow(dead_code)]
 pub struct FunctionCall {
     function: Rc<Function>,
     arguments: Vec<Expression>,
 }
 
-#[allow(dead_code)]
 impl FunctionCall {
     pub fn new(function: Rc<Function>, arguments: Vec<Expression>) -> FunctionCall {
         FunctionCall { function, arguments }
@@ -190,7 +187,9 @@ impl FunctionCall {
         for argument in &self.arguments {
             output.push_str(format!("{},", argument.transpile()).as_str())
         }
-        output.pop();
+        if !self.arguments.is_empty() {
+            output.pop();
+        }
         output.push(')');
         output
     }

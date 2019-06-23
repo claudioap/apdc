@@ -1,20 +1,33 @@
 use std::fmt;
 use std::rc::Rc;
 use std::collections::HashSet;
-use crate::yggl::structure::StructDecl;
-use crate::yggl::function::Function;
-use crate::yggl::environment::{Variable, Environment};
-use crate::yggl::foreign::{ProtoAddMLoopCall, ProtoCreateCall, ForeignFunctionCall};
-use crate::yggl::statement::Statement;
+use std::slice::Iter;
 use crate::parser::CompilationError;
+use crate::yggl::structure::StructDecl;
+use crate::yggl::function::{Function, FunctionCall};
+use crate::yggl::environment::{Variable, Environment, Label};
+use crate::yggl::foreign::{ProtoAddMLoopCall, ProtoCreateCall, ForeignFunctionCall, ProtoDefAddMsgHCall, ProtoDefAddTimerHCall, ProtoDefAddRequestHCall, ProtoDefAddEventHCall};
+use crate::yggl::statement::Statement;
 use crate::yggl::expression::Expression;
+use crate::yggl::flow::{Case, Switch};
+use crate::yggl::data::Constant;
 
+#[derive(Clone, PartialEq)]
 pub enum YggType {
     Request,
     Reply,
     Message,
     Timer,
     Notification,
+}
+
+impl YggType {
+    pub fn iterator() -> Iter<'static, YggType> {
+        static TYPES: [YggType; 5] = [
+            YggType::Request, YggType::Reply, YggType::Message,
+            YggType::Timer, YggType::Notification];
+        TYPES.iter()
+    }
 }
 
 impl fmt::Display for YggType {
@@ -35,14 +48,13 @@ pub enum Interface {
 }
 
 pub struct Handler {
-    identifier: String,
-    ytype: YggType,
+    label: Rc<Label>,
     function: Rc<Function>,
 }
 
 impl Handler {
-    pub fn new(identifier: String, ytype: YggType, function: Rc<Function>) -> Handler {
-        Handler { identifier, ytype, function }
+    pub fn new(label: Rc<Label>, function: Rc<Function>) -> Handler {
+        Handler { label, function }
     }
 }
 
@@ -72,6 +84,38 @@ impl ProtocolDef {
         self.main_loop = Some(main_loop)
     }
 
+    pub fn build_handler_muxes(&self)
+                               -> Result<Vec<(YggType, Function)>, CompilationError> {
+        let mut handlers = vec![];
+        for ytype in YggType::iterator() {
+            let mut cases = vec![];
+            for handler in &self.handlers {
+                if handler.label.get_type() != *ytype {
+                    continue;
+                }
+                cases.push(Case::new(
+                    Constant::Int(1),
+                    vec![Statement::Call(
+                        FunctionCall::new(
+                            Rc::clone(&handler.function),
+                            vec![])
+                    )]));
+            }
+            if cases.is_empty() {
+                continue;
+            }
+            let switch = Switch::new(Expression::Constant(Constant::Int(1)), cases);
+            let statement = Statement::Switch(switch);
+            let function = Function::new(
+                Environment::new(),
+                format!("{}_handler", ytype),
+                vec![],
+                vec![statement])?;
+            handlers.push((ytype.clone(), function));
+        }
+        Ok(handlers)
+    }
+
     pub fn build_init_function(&self, env: &mut Environment) -> Result<Function, CompilationError> {
         let aux = env.declare_aux();
         let proto_creation_call = ProtoCreateCall::new(Rc::clone(&self.state));
@@ -88,6 +132,44 @@ impl ProtocolDef {
                     ProtoAddMLoopCall::new(
                         Rc::clone(&aux),
                         Rc::clone(main_loop)))));
+        }
+        for (ytype, handler_func) in self.build_handler_muxes()? {
+            let handler_rc = env.add_function(handler_func);
+            match ytype {
+                YggType::Timer => {
+                    statements.push(
+                        Statement::ForeignCall(Box::new(
+                            ProtoDefAddTimerHCall::new(
+                                Rc::clone(&aux),
+                                handler_rc)
+                        )))
+                }
+                YggType::Request => {
+                    statements.push(
+                        Statement::ForeignCall(Box::new(
+                            ProtoDefAddRequestHCall::new(
+                                Rc::clone(&aux),
+                                handler_rc)
+                        )))
+                }
+                YggType::Message => {
+                    statements.push(
+                        Statement::ForeignCall(Box::new(
+                            ProtoDefAddMsgHCall::new(
+                                Rc::clone(&aux),
+                                handler_rc)
+                        )))
+                }
+                YggType::Notification => {
+                    statements.push(
+                        Statement::ForeignCall(Box::new(
+                            ProtoDefAddEventHCall::new(
+                                Rc::clone(&aux),
+                                handler_rc)
+                        )))
+                }
+                _ => {}
+            }
         }
         statements.push(Statement::Return(Expression::Variable(Rc::clone(&aux))));
         let func_env = Environment::new();

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::data::{Constant, DataType};
 use crate::yggl::structure::LocalAttribute;
-use crate::yggl::function::FunctionCall;
+use crate::yggl::function::{FunctionCall, Function};
 use crate::yggl::foreign::ForeignFunctionCall;
 
 /// Expressions represent portions of code that evaluate to values
@@ -16,6 +16,7 @@ pub enum Expression {
     AttributeAccess(Rc<Variable>, Rc<LocalAttribute>),
     Call(FunctionCall),
     Foreign(Box<dyn ForeignFunctionCall>),
+    FunctionRef(Rc<Function>),
 }
 
 impl Expression {
@@ -48,9 +49,7 @@ impl Expression {
                         Constant::Bool(self.bin_eval(environment)),
                 }
             }
-            Expression::AttributeAccess(_, _) | Expression::Call(_) | Expression::Foreign(_) => {
-                unimplemented!();
-            }
+            _ => unimplemented!()
         }
     }
 
@@ -126,6 +125,7 @@ impl Expression {
             Expression::AttributeAccess(_, attr) => attr.data_type(),
             Expression::Call(call) => call.data_type(),
             Expression::Foreign(call) => call.return_type(),
+            Expression::FunctionRef(_) => Some(DataType::Function)
         }
     }
 
@@ -141,6 +141,7 @@ impl Expression {
                 format!("{}->{}", var.get_identifier(), attr.get_name()),
             Expression::Call(call) => call.transpile(),
             Expression::Foreign(call) => call.transpile(),
+            Expression::FunctionRef(func) => func.get_name().to_string()
         }
     }
 }
@@ -161,7 +162,9 @@ impl fmt::Display for Expression {
             Expression::Call(call) =>
                 write!(f, "{}", call.transpile()),
             Expression::Foreign(call) =>
-                write!(f, "{}", call.transpile())
+                write!(f, "{}", call.transpile()),
+            Expression::FunctionRef(func) =>
+                write!(f, "{}", func.get_name())
         }
     }
 }

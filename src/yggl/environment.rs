@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::yggl::data::{Constant, DataType};
 use crate::yggl::function::Function;
-use crate::yggl::protocol::Include;
+use crate::yggl::protocol::{Include, YggType};
 use crate::yggl::structure::StructDecl;
 use crate::yggl::embedded::list;
 
@@ -12,6 +12,8 @@ use crate::yggl::embedded::list;
 static mut AUX_COUNT: i32 = 0;
 // Built in types load flag
 static mut BUILT_IN_LOADED: bool = false;
+// Count of issued labels
+static mut LABEL_COUNT: u8 = 0;
 
 /// A program has a set of environments, which hold variable data.
 /// A scope is a slice of the current environment.
@@ -179,6 +181,14 @@ impl Environment {
         struct_def_rc
     }
 
+    pub fn add_label(&mut self, label: Label) -> Rc<Label> {
+        let name = label.get_identifier().to_string();
+        let static_scope = self.scopes.front_mut().unwrap();
+        let label_rc = Rc::new(label);
+        static_scope.insert(name, Symbol::Label(Rc::clone(&label_rc)));
+        label_rc
+    }
+
     /// Imports a vector of static symbols
     /// Meant to be used to import static symbols from the program environment
     /// into a function's environment
@@ -205,6 +215,11 @@ impl Environment {
                     static_scope.insert(
                         define.get_identifier().to_string(),
                         Symbol::Define(define));
+                }
+                Symbol::Label(label) => {
+                    static_scope.insert(
+                        label.get_identifier().to_string(),
+                        Symbol::Label(label));
                 }
             }
         }
@@ -331,11 +346,35 @@ impl fmt::Display for Variable {
     }
 }
 
+pub struct Label {
+    identifier: String,
+    code: u8,
+    ytype: YggType,
+}
+
+impl Label {
+    pub fn new(identifier: String, ytype: YggType) -> Label {
+        unsafe {
+            let code = LABEL_COUNT;
+            LABEL_COUNT += 1;
+            Label { identifier, code, ytype }
+        }
+    }
+
+    pub fn get_identifier(&self) -> &str {
+        self.identifier.as_str()
+    }
+
+    pub fn get_type(&self) -> YggType {
+        self.ytype.clone()
+    }
+}
+
 #[derive(Clone)]
-#[allow(dead_code)]
 pub enum Symbol {
     Define(Define),
     Variable(Rc<Variable>),
     Function(Rc<Function>),
     StructDecl(Rc<StructDecl>),
+    Label(Rc<Label>),
 }

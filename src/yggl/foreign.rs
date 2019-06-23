@@ -2,7 +2,6 @@ use std::rc::Rc;
 use std::fmt;
 use crate::yggl::data::{DataType, Constant};
 use crate::yggl::structure::StructDecl;
-use crate::yggl::protocol::ProtocolDef;
 use crate::yggl::expression::{Expression, UnaryOperation};
 use crate::yggl::function::Function;
 use crate::yggl::environment::Variable;
@@ -24,8 +23,9 @@ pub enum ForeignType {
     Response,
     Event,
 }
+
 impl ForeignType {
-    pub fn name(&self) -> &str{
+    pub fn name(&self) -> &str {
         match self {
             ForeignType::ProtoDef => "proto_def",
             ForeignType::UUID => "uuid_t",
@@ -321,12 +321,12 @@ impl ForeignFunctionCall for ProtoAddConsumedCall {
 
 // --------------- Handlers ---------------
 pub struct ProtoDefAddMsgHCall {
-    protocol: Rc<ProtocolDef>,
+    protocol: Rc<Variable>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddMsgHCall {
-    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddMsgHCall {
+    pub fn new(protocol: Rc<Variable>, handler: Rc<Function>) -> ProtoDefAddMsgHCall {
         ProtoDefAddMsgHCall { protocol, handler }
     }
 }
@@ -337,11 +337,13 @@ impl ForeignFunctionCall for ProtoDefAddMsgHCall {
     }
 
     fn get_parameter_types(&self) -> Vec<DataType> {
-        vec![DataType::Function]
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::ProtoDef))),
+             DataType::Function]
     }
 
     fn get_args(&self) -> Vec<Rc<Expression>> {
-        unimplemented!()
+        vec![Rc::new(Expression::Variable(Rc::clone(&self.protocol))),
+             Rc::new(Expression::FunctionRef(Rc::clone(&self.handler)))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -350,12 +352,12 @@ impl ForeignFunctionCall for ProtoDefAddMsgHCall {
 }
 
 pub struct ProtoDefAddTimerHCall {
-    protocol: Rc<ProtocolDef>,
+    protocol: Rc<Variable>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddTimerHCall {
-    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddTimerHCall {
+    pub fn new(protocol: Rc<Variable>, handler: Rc<Function>) -> ProtoDefAddTimerHCall {
         ProtoDefAddTimerHCall { protocol, handler }
     }
 }
@@ -366,11 +368,13 @@ impl ForeignFunctionCall for ProtoDefAddTimerHCall {
     }
 
     fn get_parameter_types(&self) -> Vec<DataType> {
-        unimplemented!()
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::ProtoDef))),
+             DataType::Function]
     }
 
     fn get_args(&self) -> Vec<Rc<Expression>> {
-        unimplemented!()
+        vec![Rc::new(Expression::Variable(Rc::clone(&self.protocol))),
+             Rc::new(Expression::FunctionRef(Rc::clone(&self.handler)))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -379,12 +383,12 @@ impl ForeignFunctionCall for ProtoDefAddTimerHCall {
 }
 
 pub struct ProtoDefAddEventHCall {
-    protocol: Rc<ProtocolDef>,
+    protocol: Rc<Variable>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddEventHCall {
-    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddEventHCall {
+    pub fn new(protocol: Rc<Variable>, handler: Rc<Function>) -> ProtoDefAddEventHCall {
         ProtoDefAddEventHCall { protocol, handler }
     }
 }
@@ -395,11 +399,13 @@ impl ForeignFunctionCall for ProtoDefAddEventHCall {
     }
 
     fn get_parameter_types(&self) -> Vec<DataType> {
-        unimplemented!()
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::ProtoDef))),
+             DataType::Function]
     }
 
     fn get_args(&self) -> Vec<Rc<Expression>> {
-        unimplemented!()
+        vec![Rc::new(Expression::Variable(Rc::clone(&self.protocol))),
+             Rc::new(Expression::FunctionRef(Rc::clone(&self.handler)))]
     }
 
     fn return_type(&self) -> Option<DataType> {
@@ -408,12 +414,12 @@ impl ForeignFunctionCall for ProtoDefAddEventHCall {
 }
 
 pub struct ProtoDefAddRequestHCall {
-    protocol: Rc<ProtocolDef>,
+    protocol: Rc<Variable>,
     handler: Rc<Function>,
 }
 
 impl ProtoDefAddRequestHCall {
-    pub fn new(protocol: Rc<ProtocolDef>, handler: Rc<Function>) -> ProtoDefAddRequestHCall {
+    pub fn new(protocol: Rc<Variable>, handler: Rc<Function>) -> ProtoDefAddRequestHCall {
         ProtoDefAddRequestHCall { protocol, handler }
     }
 }
@@ -424,11 +430,13 @@ impl ForeignFunctionCall for ProtoDefAddRequestHCall {
     }
 
     fn get_parameter_types(&self) -> Vec<DataType> {
-        unimplemented!()
+        vec![DataType::Reference(Box::new(DataType::Foreign(ForeignType::ProtoDef))),
+             DataType::Function]
     }
 
     fn get_args(&self) -> Vec<Rc<Expression>> {
-        unimplemented!()
+        vec![Rc::new(Expression::Variable(Rc::clone(&self.protocol))),
+             Rc::new(Expression::FunctionRef(Rc::clone(&self.handler)))]
     }
 
     fn return_type(&self) -> Option<DataType> {

@@ -4,7 +4,7 @@ use crate::yggl::data::DataType;
 use crate::yggl::environment::{Environment, Variable};
 use crate::yggl::expression::Expression;
 use crate::yggl::function::{FunctionCall, Function};
-use crate::yggl::flow::{Conditional, Cycle};
+use crate::yggl::flow::{Conditional, Cycle, Switch};
 use crate::yggl::structure::{StructDef, StructDecl, LocalAttribute};
 use crate::yggl::foreign::ForeignFunctionCall;
 
@@ -23,6 +23,7 @@ pub enum Statement {
     Call(FunctionCall),
     ForeignCall(Box<dyn ForeignFunctionCall>),
     Conditional(Conditional),
+    Switch(Switch),
     Cycle(Cycle),
     Print(Vec<Expression>),
     Return(Expression),
@@ -95,6 +96,7 @@ impl Statement {
                 format!("printf(\"{}\"{});", format_string, expressions_string)
             }
             Statement::Conditional(conditional) => conditional.transpile(env),
+            Statement::Switch(switch) => switch.transpile(env),
             Statement::Cycle(cycle) => cycle.transpile(env),
             Statement::StructDef(var, definition) => {
                 format!("struct {}* {};", definition.get_declaration().get_name(), var.get_identifier())
